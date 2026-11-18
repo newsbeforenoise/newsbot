@@ -27,7 +27,30 @@ def test_three_independent_sources_posts():
     assert "Huang" in s[0]["text"] and "CNBC" not in s[0]["text"]
     assert len(s[0]["sources"]) == 3
 
+def test_two_independent_sources_enough_when_min_is_2():
+    old = bot.config.MIN_SOURCES
+    bot.config.MIN_SOURCES = 2
+    try:
+        it = {}
+        add(it, "Seeking Alpha", "seekingalpha", "Palo Alto Networks to buy Applied Compute for $4.5B")
+        add(it, "Investing.com", "investing", "Palo Alto to buy Applied Compute for $4.5 billion, Q1 beats")
+        assert len(run(it)) == 1
+        it = {}
+        add(it, "BBC World", "bbc", "Palo Alto Networks to buy Applied Compute for $4.5B")
+        add(it, "BBC Business", "bbc", "Palo Alto to buy Applied Compute for $4.5 billion")
+        assert run(it) == [], "same company twice is not 2 sources"
+    finally:
+        bot.config.MIN_SOURCES = old
+
 def test_same_owner_counts_once():
+    old = bot.config.MIN_SOURCES
+    bot.config.MIN_SOURCES = 3
+    try:
+        _same_owner_counts_once()
+    finally:
+        bot.config.MIN_SOURCES = old
+
+def _same_owner_counts_once():
     it = {}
     add(it, "BBC World", "bbc", "Nvidia CEO Jensen Huang resigns")
     add(it, "BBC Biz", "bbc", "Jensen Huang resigns as Nvidia CEO")
