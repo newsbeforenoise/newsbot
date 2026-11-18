@@ -1,0 +1,1129 @@
+"""
+News Before Noise - free global-markets squawk bot (First Squawk style).
+
+Every run (every 5 minutes on GitHub Actions):
+  1. Reads ~45 RSS feeds + official central-bank / statistics feeds.
+  2. Confirms stories: 3 independent owners, or 1 official source.
+  3. Adds live price alerts (indices, FX, commodities, crypto).
+  4. Posts short Title Case headlines to Threads, Bluesky, Telegram, Mastodon, Discord.
+  5. Sends you a one-tap "Post on X" link on Telegram.
+
+Uses only the Python standard library - nothing to install.
+
+Environment variables (set as GitHub Secrets / Variables):
+  THREADS_ACCESS_TOKEN   long-lived Threads token
+  THREADS_USER_ID        your Threads user id (or leave empty to use "me")
+  TELEGRAM_BOT_TOKEN     from @BotFather
+  TELEGRAM_CHAT_ID       your private chat id with the bot (X one-tap links)
+  TELEGRAM_CHANNEL_ID    @YourChannel (public channel, auto-posts)
+  BLUESKY_HANDLE / BLUESKY_APP_PASSWORD, MASTODON_INSTANCE / MASTODON_TOKEN, DISCORD_WEBHOOK_URL
+  FB_PAGE_ID / FB_PAGE_TOKEN (Facebook Page), IG_USER_ID (Instagram, uses the Page token)
+  BOT_ENABLED            "false" = kill switch (does nothing)
+  DRY_RUN                "true"  = print what it would post, post nothing
+"""
+
+from __future__ import annotations
+
+import email.utils
+import hashlib
+import html
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config  # noqa: E402
+import images  # noqa: E402
+import prices  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+STATE_DIR = ROOT / "state"
+ITEMS_FILE = STATE_DIR / "items.json"
+POSTED_FILE = STATE_DIR / "posted.json"
+PRICES_FILE = STATE_DIR / "prices.json"
+PREVIEW_DIR = ROOT / "previews"
+DIGEST_FILE = STATE_DIR / "digest.json"
+
+USER_AGENT = "Mozilla/5.0 (compatible; NewsHeadlineBot/1.0)"
+ATOM = "{http://www.w3.org/2005/Atom}"
+
+STOPWORDS = set("""
+a an the and or but if of on in at to for from by with as is are was were be been being
+it its this that these those he she they them his her their we our you your i me my
+not no yes new news after before over under into about against amid says said say
+will would can just more most than then also up down out off again still now today
+first last top big how why what who when where which while report reports update
+breaking latest live day week year years month amid set sets get gets got make makes
+""".split())
+
+SUFFIXES = ("ations", "ation", "ings", "ing", "ed", "es", "s")
+
+KNOWN_OUTLETS = {x.lower() for x in list(config.OWNER_LABELS.values()) + [f["name"] for f in config.FEEDS] + [
+    "Reuters", "AP", "Associated Press", "AFP", "Bloomberg", "Bloomberg.com", "The Wall Street Journal",
+    "WSJ", "Financial Times", "FT", "CNBC", "CNN", "CNN Business", "BBC", "BBC News", "The Guardian",
+    "Guardian", "NPR", "Al Jazeera", "Axios", "Politico", "Forbes", "Fortune", "Barron's", "MarketWatch",
+    "Yahoo Finance", "Yahoo", "Fox Business", "Fox News", "Business Insider", "Nikkei Asia", "Nikkei",
+    "South China Morning Post", "SCMP", "The Japan Times", "The Straits Times", "Economic Times",
+    "The Economic Times", "ET", "ETMarkets", "Times of India", "The Times of India", "The Hindu",
+    "BusinessLine", "Hindustan Times", "Mint", "Livemint", "Business Standard", "Moneycontrol",
+    "NDTV", "NDTV Profit", "Indian Express", "The Indian Express", "CoinDesk", "Cointelegraph",
+    "OilPrice.com", "Investing.com", "Seeking Alpha", "FXStreet", "DW", "France 24", "Euronews",
+    "Sky News", "The Telegraph", "The Independent", "Le Monde", "Deutsche Welle", "Kyodo News",
+]}
+
+
+# ----------------------------------------------------------------------------
+# Text helpers
+# ----------------------------------------------------------------------------
+def clean_headline(title: str) -> str:
+    t = html.unescape(re.sub(r"<[^>]+>", " ", title or ""))
+    t = re.sub(r"\s+", " ", t).strip()
+    # drop " - Reuters" / " | CNBC" style suffixes, but only for known outlet names
+    m = re.search(r"\s+[\|\-–—:]\s+([^|\-–—]{2,40})$", t)
+    if m and m.group(1).strip().lower().rstrip(".") in KNOWN_OUTLETS:
+        t = t[: m.start()]
+    # drop leading labels
+    t = re.sub(r"^(breaking( news)?|exclusive|update|just in)\s*[:\-–—]\s*", "", t, flags=re.I)
+    return t.strip(" .")
+
+
+def stem(word: str) -> str:
+    for suf in SUFFIXES:
+        if word.endswith(suf) and len(word) - len(suf) >= 4:
+            return word[: -len(suf)]
+    return word
+
+
+def key_words(title: str) -> set[str]:
+    words = re.findall(r"[a-z0-9&]+", title.lower())
+    return {stem(w) for w in words if w not in STOPWORDS and (len(w) > 2 or w.isdigit())}
+
+
+def is_blocked(title: str) -> bool:
+    low = f" {title.lower()} "
+    # "since May", "in May 2026", "May 15": the month, not the word "may"
+    low = re.sub(r"\b(in|since|from|until|till|by|of|last|this|next|early|late|mid|end)\s+may\b", r"\1 month", low)
+    low = re.sub(r"\bmay\s+(?=\d)", "month ", low)
+    if title.startswith("May "):
+        low = " month " + low[5:]
+    return any(p in low for p in config.BLOCKED_PHRASES)
+
+
+def on_topic(title: str, keywords: list[str]) -> bool:
+    return _mentions(title, keywords)
+
+
+US_RE = re.compile(r"(?<![A-Za-z])(U\.S\.A?\.?|USA|US)(?![A-Za-z])")
+
+
+def _word_pos(low: str, w: str) -> int:
+    """Position of word/phrase w in lowercase text, or -1. Single words match whole words."""
+    if " " in w or "&" in w or "-" in w or "/" in w:
+        return low.find(w)
+    m = re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", low)
+    return m.start() if m else -1
+
+
+def _mentions(text: str, words: list[str]) -> bool:
+    low = text.lower()
+    return any(_word_pos(low, w) >= 0 for w in words)
+
+
+def detect_countries(text: str) -> list[str]:
+    """Country codes mentioned in the text, in order of first appearance."""
+    low = text.lower()
+    found = []
+    for code, d in config.COUNTRIES.items():
+        positions = [p for p in (_word_pos(low, w) for w in d["words"]) if p >= 0]
+        if code == "US":
+            m = US_RE.search(text)
+            if m:
+                positions.append(m.start())
+        if positions:
+            found.append((min(positions), code))
+    return [c for _, c in sorted(found)]
+
+
+def flags_for(codes: list[str]) -> str:
+    if not config.SHOW_FLAGS:
+        return ""
+    return "".join(config.COUNTRIES[c]["flag"] for c in codes[: config.MAX_FLAGS]) or config.DEFAULT_FLAG
+
+
+def camel_tag(phrase: str) -> str:
+    return "#" + "".join(w[:1].upper() + w[1:] for w in re.findall(r"[A-Za-z0-9]+", phrase))
+
+
+def trending_terms() -> list[str]:
+    """Today's trending searches from Google Trends' free RSS."""
+    if not config.USE_TRENDING:
+        return []
+    terms = []
+    for raw in fetch_all(config.TRENDS_FEEDS).values():
+        if raw:
+            terms += [e["title"] for e in parse_feed(raw) if e["title"]]
+    return terms
+
+
+def hashtags_for(headline: str, all_text: str, countries: list[str], trends: list[str],
+                 priority: int = 3) -> list[str]:
+    """Best-first list of hashtags for a story."""
+    tags: list[str] = []
+    # 1. specific topic tags found in the chosen headline, then in other outlets' headlines
+    for text in (headline, all_text):
+        for tag, words in config.HASHTAG_RULES:
+            if _mentions(text, words):
+                tags.append(tag)
+    # 2. a trending search that appears in the headline (all its words present)
+    head_toks = set(re.findall(r"[a-z0-9]+", headline.lower()))
+    for t in trends:
+        words = re.findall(r"[a-z0-9]+", t.lower())
+        if 0 < len(words) <= 3 and len(t) <= 25 and all(w in head_toks for w in words) \
+                and not all(w in STOPWORDS for w in words):
+            tags.insert(1 if tags else 0, camel_tag(t))
+            break
+    # 3. countries (headline order), 4. broad category
+    tags += [config.COUNTRIES[c]["tag"] for c in countries]
+    tags.append(config.MARKET_TAG if priority >= 3 else config.GEO_TAG)
+    seen, out = set(), []
+    for t in tags:
+        if t.lower() not in seen and len(t) > 2:
+            seen.add(t.lower())
+            out.append(t)
+    return out
+
+
+def threads_topic(tags: list[str]) -> str:
+    """Threads topic tag: no '#', no '.' or '&', max 50 chars."""
+    for t in tags:
+        clean = t.lstrip("#").replace(".", "").replace("&", "")
+        if clean and len(clean) <= 50:
+            return clean
+    return ""
+
+
+GENERIC_WORDS: set[str] = set()
+
+
+def _generic() -> set[str]:
+    if not GENERIC_WORDS:
+        GENERIC_WORDS.update(key_words(" ".join(config.GENERIC_WORDS)))
+    return GENERIC_WORDS
+
+
+def similar(a: set[str], b: set[str]) -> bool:
+    """Same story? Needs enough shared key words AND enough shared *specific* words
+    (names, places, numbers) - generic words like stocks/oil/rise can't confirm a story alone."""
+    if not a or not b:
+        return False
+    shared = a & b
+    specific = shared - _generic()
+    return (len(shared) >= config.MIN_SHARED_WORDS
+            and len(shared) / min(len(a), len(b)) >= config.MIN_OVERLAP
+            and len(specific) >= config.MIN_SPECIFIC_WORDS)
+
+
+# ----------------------------------------------------------------------------
+# Feeds
+# ----------------------------------------------------------------------------
+def fetch_all(urls: list[str]) -> dict[str, bytes | None]:
+    """Fetches many URLs at the same time (much faster than one by one)."""
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        return dict(zip(urls, pool.map(fetch, urls)))
+
+
+def fetch(url: str, timeout: int = 15) -> bytes | None:
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.read()
+    except Exception as e:  # noqa: BLE001
+        print(f"  ! feed failed: {url} ({e})")
+        return None
+
+
+def parse_date(text: str | None) -> float | None:
+    if not text:
+        return None
+    try:
+        return email.utils.parsedate_to_datetime(text).timestamp()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1].lower()
+
+
+def parse_feed(raw: bytes) -> list[dict]:
+    """Returns [{title, link, published}] from RSS 2.0, RSS 1.0 (RDF) or Atom.
+    Falls back to a forgiving regex parser when the XML is broken."""
+    out = []
+    try:
+        root = ET.fromstring(raw)
+        for el in root.iter():
+            if _local(el.tag) not in ("item", "entry"):
+                continue
+            title = link = date = ""
+            for ch in el:
+                name = _local(ch.tag)
+                if name == "title":
+                    title = "".join(ch.itertext()).strip()
+                elif name == "link" and not link:
+                    link = (ch.text or ch.get("href") or "").strip()
+                elif name in ("pubdate", "published", "updated", "date") and not date:
+                    date = (ch.text or "").strip()
+            out.append({"title": title, "link": link, "published": parse_date(date)})
+        return out
+    except ET.ParseError:
+        pass
+    text = raw.decode("utf-8", "ignore")
+    for block in re.findall(r"<(?:item|entry)\b.*?</(?:item|entry)>", text, re.S | re.I):
+        t = re.search(r"<title[^>]*>(.*?)</title>", block, re.S | re.I)
+        d = re.search(r"<(?:pubDate|published|updated|dc:date)[^>]*>(.*?)</", block, re.S | re.I)
+        if t:
+            title = re.sub(r"^<!\[CDATA\[|\]\]>$", "", t.group(1).strip())
+            out.append({"title": title, "link": "", "published": parse_date(d.group(1).strip() if d else "")})
+    return out
+
+
+# ----------------------------------------------------------------------------
+# State
+# ----------------------------------------------------------------------------
+def load(path: Path, default):
+    try:
+        return json.loads(path.read_text())
+    except Exception:  # noqa: BLE001
+        return default
+
+
+def save(path: Path, data) -> None:
+    STATE_DIR.mkdir(exist_ok=True)
+    path.write_text(json.dumps(data, indent=1, ensure_ascii=False))
+
+
+# ----------------------------------------------------------------------------
+# Core logic (pure - easy to test)
+# ----------------------------------------------------------------------------
+def collect(items: dict, feed: dict, entries: list[dict], now: float) -> int:
+    """Adds new feed entries to the items store. Returns how many were new."""
+    added = 0
+    for e in entries:
+        title = clean_headline(e["title"])
+        if not title:
+            continue
+        iid = hashlib.sha1(f'{feed["owner"]}|{title.lower()}'.encode()).hexdigest()[:16]
+        if iid in items:
+            continue
+        items[iid] = {
+            "title": title,
+            "outlet": feed["name"],
+            "owner": feed["owner"],
+            "published": e.get("published"),
+            "seen": now,
+            "words": sorted(key_words(title)),
+            "official": bool(feed.get("official")),
+        }
+        added += 1
+    return added
+
+
+def source_credit(group: list[dict], best: dict | None = None) -> list[str]:
+    """Owner labels, one per owner: the outlet whose headline we use first (like First
+    Squawk's "– FT"), then official sources, then whoever reported it first."""
+    out = []
+    ordered = sorted(group, key=lambda g: (g is not best, not g.get("official"),
+                                           g.get("published") or g["seen"], g["seen"]))
+    for g in ordered:
+        label = config.OWNER_LABELS.get(g["owner"], g["outlet"])
+        if label not in out:
+            out.append(label)
+    return out
+
+
+def has_signal(words: set[str]) -> bool:
+    return any(any(ch.isdigit() for ch in w) or any(w.startswith(sig) for sig in config.FOLLOWUP_SIGNALS)
+               for w in words)
+
+
+def followup_parent(related: list[dict], posted: list[dict], words: set[str], now: float) -> str | None:
+    """If this headline is a genuine update to a posted story, return that story's id."""
+    if not config.FOLLOWUPS:
+        return None
+    for p in related:
+        sid = p.get("story_id")
+        if not sid:
+            continue
+        thread = [q for q in posted if q.get("story_id") == sid]
+        first_ts = min(q["ts"] for q in thread)
+        if now - first_ts > config.FOLLOWUP_HOURS * 3600 or len(thread) > config.MAX_FOLLOWUPS:
+            return None
+        known = set().union(*(set(q["words"]) for q in thread))
+        new = words - known
+        if len(new) >= config.FOLLOWUP_MIN_NEW_WORDS and has_signal(new):
+            return sid
+        return None
+    return None
+
+
+def find_stories(items: dict, posted: list, now: float, trends: list[str] | None = None) -> list[dict]:
+    """Groups items into stories confirmed by >= MIN_SOURCES different owners."""
+    fresh_cutoff = now - config.FRESH_HOURS * 3600
+    already_used = {i for p in posted for i in p.get("item_ids", [])}
+    pool = []
+    for iid, it in items.items():
+        if iid in already_used or it.get("baseline"):
+            continue
+        ts = it.get("published") or it["seen"]
+        if ts < fresh_cutoff or it["seen"] < fresh_cutoff:
+            continue
+        if is_blocked(it["title"]):
+            continue
+        if it.get("official") and (not on_topic(it["title"], config.OFFICIAL_KEYWORDS)
+                                   or on_topic(it["title"], config.OFFICIAL_SKIP)):
+            continue  # routine official notice
+        pool.append({**it, "id": iid, "wset": set(it["words"])})
+
+    stories, used = [], set()
+
+    # newest first so we react to the latest wording
+    pool.sort(key=lambda x: x["seen"], reverse=True)
+    for anchor in pool:
+        if anchor["id"] in used:
+            continue
+        group = [anchor] + [
+            o for o in pool
+            if o["id"] != anchor["id"] and o["id"] not in used and similar(anchor["wset"], o["wset"])
+        ]
+        owners = {g["owner"] for g in group}
+        official = [g for g in group if g.get("official")]
+        if len(owners) < config.MIN_SOURCES and not official:
+            continue
+        for g in group:
+            used.add(g["id"])
+        # official wording wins; otherwise the most specific (has numbers), then shortest
+        best = official[0] if official else min(
+            [g for g in group if len(g["title"]) <= config.MAX_HEADLINE_CHARS] or group,
+            key=lambda g: (not re.search(r"\d", g["title"]), len(g["title"])))
+        all_text = " | ".join(g["title"] for g in group)
+        countries = detect_countries(best["title"]) or detect_countries(all_text)
+        focus = any(c in config.FOCUS_COUNTRIES for c in countries)
+        if config.REQUIRE_FOCUS_COUNTRY and not focus:
+            continue
+        if official or any(on_topic(g["title"], config.MARKET_KEYWORDS) for g in group):
+            priority = 3          # tier 1: markets / official releases
+        elif len(countries) >= 2 or any(on_topic(g["title"], config.GEO_KEYWORDS) for g in group):
+            priority = 2          # tier 2: geopolitics & politics
+        else:
+            priority = 1          # tier 3: general news
+        if priority == 1 and not config.INCLUDE_GENERAL_NEWS:
+            continue
+        union_words = set().union(*(g["wset"] for g in group))
+        best_words = key_words(best["title"])
+        related = [p for p in posted
+                   if similar(anchor["wset"], set(p["words"])) or similar(union_words & set(p["words"]), set(p["words"]))]
+        followup_of = None
+        if related:
+            followup_of = followup_parent(related, posted, best_words, now)
+            if not followup_of:
+                continue  # same story, nothing new -> skip
+        story_id = followup_of or anchor["id"]
+        stories.append({
+            "text": best["title"],
+            "flags": flags_for(countries),
+            "countries": countries,
+            "tags": hashtags_for(best["title"], all_text, countries, trends or [], priority),
+            "priority": priority,
+            "focus": focus,
+            "words": sorted(union_words),
+            "sources": sorted({g["outlet"] for g in group}),
+            "credit": source_credit(group, best),
+            "item_ids": [g["id"] for g in group],
+            "story_id": story_id,
+            "followup": bool(followup_of),
+        })
+    # tier 1 first, then tier 2, then tier 3; US/India first within a tier
+    stories.sort(key=lambda s: (s["priority"], s["focus"]), reverse=True)
+    return stories
+
+
+# ----------------------------------------------------------------------------
+# Posting
+# ----------------------------------------------------------------------------
+def http_post(url: str, params: dict | None = None, json_body: dict | None = None,
+              headers: dict | None = None) -> dict:
+    h = {"User-Agent": USER_AGENT, **(headers or {})}
+    if json_body is not None:
+        data = json.dumps(json_body).encode()
+        h["Content-Type"] = "application/json"
+    else:
+        data = urllib.parse.urlencode(params or {}).encode()
+    req = urllib.request.Request(url, data=data, headers=h)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = r.read()
+    except urllib.error.HTTPError as e:  # show the platform's reason (never the URL: it can hold tokens)
+        detail = e.read().decode("utf-8", "ignore")[:300]
+        raise RuntimeError(f"HTTP {e.code}: {detail}") from None
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"network error: {e.reason}") from None
+    try:
+        return json.loads(body or b"{}")
+    except ValueError:
+        return {}
+
+
+def env(name: str) -> str:
+    return (os.environ.get(name) or "").strip()
+
+
+# --- Image cards on every platform ---------------------------------------------
+def wants_card(name: str) -> bool:
+    return name in config.CARD_PLATFORMS and images.available()
+
+
+def ensure_image_url(p: dict) -> str:
+    """Public URL of the card (needed by Threads/Instagram). Hosted on the Facebook Page."""
+    if not p.get("image_url") and env("FB_PAGE_ID") and env("FB_PAGE_TOKEN"):
+        fb_upload(p, published=False)
+    return p.get("image_url", "")
+
+
+def with_card(name: str, p: dict, card_fn, text_fn) -> str:
+    """Posts the image card; if anything about the image fails, posts plain text instead."""
+    if wants_card(name):
+        try:
+            return card_fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"    ~ {name}: image failed ({e}), posting text instead")
+    return text_fn()
+
+
+# --- Threads (card via public URL, or text) + 1 topic tag ---------------------
+def post_threads(p: dict) -> str:
+    token = env("THREADS_ACCESS_TOKEN")
+    base = f"https://graph.threads.net/v1.0/{env('THREADS_USER_ID') or 'me'}"
+
+    def publish(params: dict) -> str:
+        params.update({"text": p["plain"][:500], "access_token": token})
+        if p["topic"]:
+            params["topic_tag"] = p["topic"]
+        cid = http_post(f"{base}/threads", params)["id"]
+        for _ in range(10):  # wait until Threads has processed the container
+            time.sleep(3)
+            st = http_get_json(f"https://graph.threads.net/v1.0/{cid}", {"fields": "status", "access_token": token})
+            if st.get("status") in ("FINISHED", None):
+                break
+            if st.get("status") == "ERROR":
+                raise RuntimeError("Threads could not process the post")
+        return http_post(f"{base}/threads_publish", {"creation_id": cid, "access_token": token}).get("id", "")
+
+    def card() -> str:
+        url = ensure_image_url(p)
+        if not url:
+            raise RuntimeError("no public image URL (add the Facebook Page secrets to enable Threads images)")
+        return publish({"media_type": "IMAGE", "image_url": url})
+
+    return with_card("Threads", p, card, lambda: publish({"media_type": "TEXT"}))
+
+
+# --- Bluesky (card as an uploaded image + clickable hashtags) -----------------
+_bsky_session: dict = {}
+
+
+def bluesky_facets(text: str) -> list[dict]:
+    """Makes #hashtags clickable. Bluesky wants UTF-8 byte offsets."""
+    facets = []
+    for m in re.finditer(r"(?<!\w)#([A-Za-z][A-Za-z0-9_]*)", text):
+        start = len(text[: m.start()].encode())
+        end = len(text[: m.end()].encode())
+        facets.append({"index": {"byteStart": start, "byteEnd": end},
+                       "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": m.group(1)}]})
+    return facets
+
+
+def http_post_bytes(url: str, data: bytes, headers: dict) -> dict:
+    req = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT, **headers})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', 'ignore')[:300]}") from None
+
+
+def post_bluesky(p: dict) -> str:
+    host = env("BLUESKY_PDS") or "https://bsky.social"
+    if not _bsky_session:  # one login per run (Bluesky allows 300 logins/day)
+        _bsky_session.update(http_post(f"{host}/xrpc/com.atproto.server.createSession", json_body={
+            "identifier": env("BLUESKY_HANDLE"), "password": env("BLUESKY_APP_PASSWORD")}))
+    auth = {"Authorization": f"Bearer {_bsky_session['accessJwt']}"}
+    text = p["tagged"] if len(p["tagged"]) <= 300 else p["plain"][:300]
+    record = {"$type": "app.bsky.feed.post", "text": text, "langs": ["en"],
+              "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
+    facets = bluesky_facets(text)
+    if facets:
+        record["facets"] = facets
+
+    def create(rec: dict) -> str:
+        return http_post(f"{host}/xrpc/com.atproto.repo.createRecord", headers=auth, json_body={
+            "repo": _bsky_session["did"], "collection": "app.bsky.feed.post", "record": rec}).get("uri", "")
+
+    def card() -> str:
+        blob = http_post_bytes(f"{host}/xrpc/com.atproto.repo.uploadBlob", card_image(p),
+                               {**auth, "Content-Type": "image/jpeg"})["blob"]
+        return create({**record, "embed": {"$type": "app.bsky.embed.images", "images": [{
+            "alt": p["alt"], "image": blob, "aspectRatio": {"width": images.W, "height": images.H}}]}})
+
+    return with_card("Bluesky", p, card, lambda: create(record))
+
+
+# --- Telegram public channel (photo + caption, or text) -----------------------
+def post_telegram_channel(p: dict) -> str:
+    api = f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}"
+    chat = env("TELEGRAM_CHANNEL_ID")
+
+    def card() -> str:
+        r = http_post_file(f"{api}/sendPhoto", {"chat_id": chat, "caption": p["tagged"][:1024]},
+                           "photo", "card.jpg", card_image(p))
+        return str(r.get("result", {}).get("message_id", ""))
+
+    def text() -> str:
+        r = http_post(f"{api}/sendMessage", {"chat_id": chat, "text": p["tagged"], "disable_web_page_preview": "true"})
+        return str(r.get("result", {}).get("message_id", ""))
+
+    return with_card("Telegram", p, card, text)
+
+
+# --- Mastodon (media upload + status, or text) --------------------------------
+def post_mastodon(p: dict) -> str:
+    host = env("MASTODON_INSTANCE").rstrip("/")
+    auth = {"Authorization": f"Bearer {env('MASTODON_TOKEN')}"}
+    status = {"status": p["tagged"][:500], "visibility": "public", "language": "en"}
+
+    def send(extra: dict) -> str:
+        return http_post(f"{host}/api/v1/statuses", {**status, **extra}, headers={
+            **auth, "Idempotency-Key": hashlib.sha1(p["tagged"].encode()).hexdigest()}).get("id", "")
+
+    def card() -> str:
+        media = http_post_file(f"{host}/api/v2/media", {"description": p["alt"]}, "file", "card.jpg",
+                               card_image(p), headers=auth)
+        time.sleep(2)  # give the server a moment to process the image
+        return send({"media_ids[]": media["id"]})
+
+    return with_card("Mastodon", p, card, lambda: send({}))
+
+
+# --- Discord (webhook with the card attached, or text) ------------------------
+def post_discord(p: dict) -> str:
+    url = env("DISCORD_WEBHOOK_URL")
+
+    def card() -> str:
+        http_post_file(url, {"payload_json": json.dumps({"content": p["tagged"][:2000]})},
+                       "files[0]", "card.jpg", card_image(p))
+        return "ok"
+
+    def text() -> str:
+        http_post(url, json_body={"content": p["tagged"][:2000]})
+        return "ok"
+
+    return with_card("Discord", p, card, text)
+
+
+# --- Facebook Page + Instagram (image cards) ---------------------------------
+def http_get_json(url: str, params: dict) -> dict:
+    req = urllib.request.Request(f"{url}?{urllib.parse.urlencode(params)}", headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', 'ignore')[:300]}") from None
+
+
+def http_post_file(url: str, fields: dict, file_field: str, filename: str, data: bytes,
+                   headers: dict | None = None) -> dict:
+    """multipart/form-data upload using only the standard library."""
+    boundary = "----nbn" + hashlib.sha1(data[:64] + str(time.time()).encode()).hexdigest()
+    body = b""
+    for k, v in fields.items():
+        body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n").encode()
+    body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{file_field}\"; filename=\"{filename}\"\r\n"
+             f"Content-Type: image/jpeg\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(url, data=body, headers={
+        "User-Agent": USER_AGENT, "Content-Type": f"multipart/form-data; boundary={boundary}", **(headers or {})})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', 'ignore')[:300]}") from None
+
+
+def graph(path: str) -> str:
+    return f"https://graph.facebook.com/{config.GRAPH_API_VERSION}/{path}"
+
+
+def card_image(p: dict) -> bytes:
+    if "image" not in p:
+        if not images.available():
+            raise RuntimeError("Pillow not installed - image cards unavailable")
+        p["image"] = images.render(p["story"], p["headline"], p["credit_main"])
+    return p["image"]
+
+
+def fb_upload(p: dict, published: bool) -> str:
+    """Uploads the card to the Facebook Page; stores its public image URL in p for Instagram."""
+    token = env("FB_PAGE_TOKEN")
+    r = http_post_file(graph(f"{env('FB_PAGE_ID')}/photos"),
+                       {"message": p["social_caption"], "published": "true" if published else "false",
+                        "access_token": token}, "source", "card.jpg", card_image(p))
+    photo_id = r.get("id", "")
+    imgs = http_get_json(graph(photo_id), {"fields": "images", "access_token": token}).get("images", [])
+    if imgs:
+        p["image_url"] = max(imgs, key=lambda i: i.get("width", 0))["source"]
+    return r.get("post_id") or photo_id
+
+
+def post_facebook(p: dict) -> str:
+    return fb_upload(p, published=True)
+
+
+def post_instagram(p: dict) -> str:
+    token = env("INSTAGRAM_ACCESS_TOKEN") or env("FB_PAGE_TOKEN")
+    if not p.get("image_url"):          # Facebook posting off/failed: host the image unpublished
+        fb_upload(p, published=False)
+    if not p.get("image_url"):
+        raise RuntimeError("could not get a public image URL from Facebook")
+    ig = env("IG_USER_ID")
+    container = http_post(graph(f"{ig}/media"), {"image_url": p["image_url"], "caption": p["ig_caption"],
+                                                 "access_token": token})["id"]
+    for _ in range(10):                 # wait until Instagram has processed the image
+        status = http_get_json(graph(container), {"fields": "status_code", "access_token": token})
+        if status.get("status_code") in ("FINISHED", None):
+            break
+        if status.get("status_code") == "ERROR":
+            raise RuntimeError("Instagram could not process the image")
+        time.sleep(3)
+    return http_post(graph(f"{ig}/media_publish"), {"creation_id": container, "access_token": token}).get("id", "")
+
+
+IMAGE_PLATFORMS = {"Facebook", "Instagram"}
+
+
+# name -> (function, secrets it needs). A platform is ON when its secrets exist.
+PLATFORMS = {   # Facebook first: its public image URL is reused by Instagram and Threads
+    "Facebook":  (post_facebook,         ["FB_PAGE_ID", "FB_PAGE_TOKEN"]),
+    "Instagram": (post_instagram,        ["IG_USER_ID", "FB_PAGE_ID", "FB_PAGE_TOKEN"]),
+    "Threads":   (post_threads,          ["THREADS_ACCESS_TOKEN"]),
+    "Bluesky":   (post_bluesky,          ["BLUESKY_HANDLE", "BLUESKY_APP_PASSWORD"]),
+    "Telegram":  (post_telegram_channel, ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHANNEL_ID"]),
+    "Mastodon":  (post_mastodon,         ["MASTODON_INSTANCE", "MASTODON_TOKEN"]),
+    "Discord":   (post_discord,          ["DISCORD_WEBHOOK_URL"]),
+}
+
+
+def enabled_platforms() -> list[str]:
+    on = [n for n, (_, keys) in PLATFORMS.items() if all(env(k) for k in keys)]
+    if not config.FACEBOOK_PUBLISH and "Facebook" in on:
+        on.remove("Facebook")
+    if not images.available():
+        if IMAGE_PLATFORMS & set(on):
+            print("  ! Pillow not installed: skipping Facebook/Instagram, other platforms post text")
+        on = [n for n in on if n not in IMAGE_PLATFORMS]
+    return on
+
+
+def platform_wants(name: str, story: dict, posted: list, now: float) -> bool:
+    """Image platforms only get important stories, within their own daily cap.
+    Digest platforms get nothing per story: they post once an hour (see run_digest)."""
+    if name in config.DIGEST_PLATFORMS:
+        return False
+    if name not in IMAGE_PLATFORMS:
+        return True
+    if story["priority"] < config.IMAGE_MIN_PRIORITY:
+        return False
+    used = sum(1 for q in posted if q["ts"] > now - 86400 and name in q.get("platforms", []))
+    return used < config.IMAGE_DAILY_LIMITS.get(name, 25)
+
+
+# --- Hourly digest: one carousel per hour on Facebook / Instagram ------------
+def _tz():
+    from zoneinfo import ZoneInfo
+    try:
+        return ZoneInfo(config.DIGEST_TIMEZONE)
+    except Exception:  # noqa: BLE001
+        return timezone.utc
+
+
+def hour_key(ts: float) -> str:
+    return datetime.fromtimestamp(ts, _tz()).strftime("%Y-%m-%d %H")
+
+
+def hour_window(first_ts: float, last_ts: float) -> str:
+    """'14:00–15:00 UTC' (or '13:00–16:00 UTC' if several hours were batched)."""
+    tz = _tz()
+    a = datetime.fromtimestamp(first_ts, tz).replace(minute=0, second=0, microsecond=0)
+    b = datetime.fromtimestamp(last_ts, tz).replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    return f"{a:%H:%M}–{b:%H:%M} {a.tzname() or config.DIGEST_TIMEZONE}"
+
+
+def queue_for_digest(p: dict, story: dict, now: float) -> dict:
+    return {"ts": now, "headline": p["headline"], "credit": p["credit_main"], "plain": p["plain"],
+            "tags": story.get("tags", []), "priority": story["priority"], "focus": story.get("focus", False),
+            "story": {k: story.get(k) for k in ("priority", "countries", "followup", "is_price")}}
+
+
+def build_digest(items: list[dict]) -> dict:
+    """Slides (JPEG bytes) + caption for one hourly carousel."""
+    picked = sorted(items, key=lambda q: (q["priority"], q.get("focus", False), q["ts"]), reverse=True)
+    picked = picked[: config.DIGEST_MAX_SLIDES - (1 if len(items) > 1 else 0)]
+    window = hour_window(min(q["ts"] for q in items), max(q["ts"] for q in items))
+    when = datetime.fromtimestamp(max(q["ts"] for q in items), _tz())
+    slides = []
+    if len(items) > 1:
+        slides.append(images.render_cover([q["headline"] for q in picked], window, len(items), when))
+    for q in picked:
+        slides.append(images.render(q["story"], q["headline"], q["credit"], when))
+    from collections import Counter
+    counts = Counter(t for q in items for t in q["tags"] if t not in (config.MARKET_TAG, config.GEO_TAG))
+    tags = [t for t, _ in counts.most_common(config.MAX_HASHTAGS_INSTAGRAM - 1)] + [config.MARKET_TAG]
+    lines = [f"{i}. {q['plain']}" for i, q in enumerate(picked, 1)]
+    more = len(items) - len(picked)
+    if more > 0:
+        lines.append(f"+{more} more headlines today on our other channels")
+    head = (f"🕐 Global markets this hour ({window})" if len(items) > 1 else picked[0]["plain"])
+    caption = head + "\n\n" + ("\n".join(lines) + "\n\n" if len(items) > 1 else "") + " ".join(tags)
+    caption += ("\n\nSwipe for every headline ➡️" if len(slides) > 1 else "")
+    caption += "\nAutomated headline alerts. Not financial advice."
+    return {"slides": slides, "caption": caption[:2150], "window": window, "count": len(items)}
+
+
+def fb_photo(data: bytes, published: bool, message: str = "") -> tuple[str, str, str]:
+    """Uploads one JPEG to the Page. Returns (photo_id, public_image_url, post_id)."""
+    token = env("FB_PAGE_TOKEN")
+    fields = {"published": "true" if published else "false", "access_token": token}
+    if message:
+        fields["message"] = message
+    r = http_post_file(graph(f"{env('FB_PAGE_ID')}/photos"), fields, "source", "card.jpg", data)
+    pid = r.get("id", "")
+    imgs = http_get_json(graph(pid), {"fields": "images", "access_token": token}).get("images", [])
+    url = max(imgs, key=lambda i: i.get("width", 0))["source"] if imgs else ""
+    return pid, url, r.get("post_id", "")
+
+
+def _host_slides(dg: dict) -> list[str]:
+    """Public URLs of all slides (uploaded to the Page unpublished) - reused by Instagram."""
+    if not dg.get("urls"):
+        ids, urls = [], []
+        for data in dg["slides"]:
+            pid, url, _ = fb_photo(data, published=False)
+            ids.append(pid)
+            urls.append(url)
+        dg["photo_ids"], dg["urls"] = ids, urls
+    return dg["urls"]
+
+
+def post_facebook_digest(dg: dict) -> str:
+    if len(dg["slides"]) == 1:
+        pid, url, post_id = fb_photo(dg["slides"][0], published=True, message=dg["caption"])
+        dg.setdefault("urls", [url])
+        return post_id or pid
+    _host_slides(dg)
+    params = {"message": dg["caption"], "access_token": env("FB_PAGE_TOKEN")}
+    for i, pid in enumerate(dg["photo_ids"]):
+        params[f"attached_media[{i}]"] = json.dumps({"media_fbid": pid})
+    return http_post(graph(f"{env('FB_PAGE_ID')}/feed"), params).get("id", "")
+
+
+def _ig_wait(container: str, token: str) -> None:
+    for _ in range(20):
+        st = http_get_json(graph(container), {"fields": "status_code", "access_token": token}).get("status_code")
+        if st in ("FINISHED", None):
+            return
+        if st == "ERROR":
+            raise RuntimeError("Instagram could not process the media")
+        time.sleep(3)
+
+
+def post_instagram_digest(dg: dict) -> str:
+    token = env("INSTAGRAM_ACCESS_TOKEN") or env("FB_PAGE_TOKEN")
+    ig = env("IG_USER_ID")
+    urls = [u for u in _host_slides(dg) if u]
+    if len(urls) != len(dg["slides"]):
+        raise RuntimeError("could not get public image URLs from Facebook")
+    if len(urls) == 1:
+        container = http_post(graph(f"{ig}/media"), {"image_url": urls[0], "caption": dg["caption"],
+                                                     "access_token": token})["id"]
+    else:
+        children = []
+        for u in urls:
+            c = http_post(graph(f"{ig}/media"), {"image_url": u, "is_carousel_item": "true",
+                                                 "access_token": token})["id"]
+            _ig_wait(c, token)
+            children.append(c)
+        container = http_post(graph(f"{ig}/media"), {"media_type": "CAROUSEL", "children": ",".join(children),
+                                                     "caption": dg["caption"], "access_token": token})["id"]
+    _ig_wait(container, token)
+    return http_post(graph(f"{ig}/media_publish"), {"creation_id": container, "access_token": token}).get("id", "")
+
+
+DIGEST_POSTERS = {"Facebook": post_facebook_digest, "Instagram": post_instagram_digest}
+
+
+def digest_platforms() -> list[str]:
+    on = set(enabled_platforms()) | ({"Instagram"} if all(env(k) for k in PLATFORMS["Instagram"][1])
+                                     and images.available() else set())
+    return [n for n in config.DIGEST_PLATFORMS if n in on and n in DIGEST_POSTERS]
+
+
+def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
+    """Adds this run's stories to the queue; once a new hour starts, posts the previous
+    hour(s) as one carousel per digest platform (retrying a failed platform up to 3 times)."""
+    platforms = digest_platforms()
+    if not platforms and not dry:
+        return
+    st = load(DIGEST_FILE, {"queue": [], "batch": None})
+    st["queue"] = (st["queue"] + new_items)[-300:]
+    cur = hour_key(now)
+    if not st.get("batch"):
+        ready = [q for q in st["queue"] if hour_key(q["ts"]) < cur]
+        if ready:
+            st["batch"] = {"items": ready, "done": [], "attempts": 0}
+            st["queue"] = [q for q in st["queue"] if hour_key(q["ts"]) >= cur]
+    batch = st.get("batch")
+    if batch:
+        dg = build_digest(batch["items"])
+        print(f"\n=== Hourly digest {dg['window']}: {dg['count']} headlines, {len(dg['slides'])} slides ===")
+        if dry:
+            PREVIEW_DIR.mkdir(exist_ok=True)
+            for i, data in enumerate(dg["slides"], 1):
+                (PREVIEW_DIR / f"digest_{i:02d}.jpg").write_bytes(data)
+            print("    (DRY_RUN - digest not posted; slides saved as previews)")
+            st["batch"] = None
+        else:
+            batch["attempts"] += 1
+            for name in [n for n in platforms if n not in batch["done"]]:
+                try:
+                    pid = DIGEST_POSTERS[name](dg)
+                    batch["done"].append(name)
+                    print(f"    ✓ {name} carousel {pid}")
+                except Exception as e:  # noqa: BLE001
+                    print(f"    ! {name} digest failed (attempt {batch['attempts']}): {e}")
+            if set(platforms) <= set(batch["done"]) or batch["attempts"] >= config.DIGEST_MAX_ATTEMPTS:
+                st["batch"] = None
+    save(DIGEST_FILE, st)
+
+
+# --- X: one-tap link sent privately to you on Telegram -----------------------
+def notify_x_link(p: dict, sources: list[str]) -> None:
+    """Private Telegram message: the card (save it, attach on X) + a one-tap X link."""
+    token, chat = env("TELEGRAM_BOT_TOKEN"), env("TELEGRAM_CHAT_ID")
+    if not token or not chat:
+        return
+    text = p["tagged"]
+    x_link = "https://x.com/intent/tweet?text=" + urllib.parse.quote(text)
+    msg = f"{text}\n\nConfirmed by: {', '.join(sources)}\n\n👉 Post on X: {x_link}"
+    api = f"https://api.telegram.org/bot{token}"
+    if wants_card("X"):
+        try:
+            http_post_file(f"{api}/sendPhoto", {"chat_id": chat, "caption": msg[:1024]}, "photo", "card.jpg",
+                           card_image(p))
+            return
+        except Exception as e:  # noqa: BLE001
+            print(f"    ~ X alert image failed ({e}), sending text")
+    http_post(f"{api}/sendMessage", {"chat_id": chat, "text": msg, "disable_web_page_preview": "true"})
+
+
+HEALTH_FILE = STATE_DIR / "health.json"
+
+
+def health_check(feeds_ok: int, now: float) -> None:
+    """Private Telegram warning if most feeds fail (max once every 6 hours)."""
+    if feeds_ok >= len(config.FEEDS) * 0.25:
+        return
+    h = load(HEALTH_FILE, {})
+    if now - h.get("last_warn", 0) < 6 * 3600:
+        return
+    h["last_warn"] = now
+    save(HEALTH_FILE, h)
+    token, chat = env("TELEGRAM_BOT_TOKEN"), env("TELEGRAM_CHAT_ID")
+    if token and chat:
+        try:
+            http_post(f"https://api.telegram.org/bot{token}/sendMessage", {"chat_id": chat,
+                      "text": f"⚠️ {config.BRAND_NAME}: only {feeds_ok}/{len(config.FEEDS)} news feeds working. "
+                              f"Check the latest GitHub Actions run log."})
+        except Exception as e:  # noqa: BLE001
+            print(f"  ! health alert failed: {e}")
+
+
+def title_case(text: str) -> str:
+    """Squawk-style Title Case. Keeps acronyms (US, RBI), numbers and words like iPhone."""
+    def fix(w: str) -> str:
+        if any(c.isdigit() for c in w):
+            return w
+        i = next((k for k, c in enumerate(w) if c.isalpha()), None)
+        if i is None or any(c.isupper() for c in w[i + 1:]) or not w[i].islower():
+            return w
+        return w[:i] + w[i].upper() + w[i + 1:]
+    return " ".join("-".join(fix(part) for part in word.split("-")) for word in text.split(" "))
+
+
+def build_posts(story: dict) -> dict:
+    """plain  = flag + headline (Threads)
+    tagged = flag + headline + up to MAX_HASHTAGS_X hashtags, <= 280 chars (X, Bluesky, Telegram...)
+    topic  = single Threads topic tag"""
+    headline = title_case(story["text"]) if config.TITLE_CASE else story["text"]
+    prefix = config.POST_PREFIX + (config.FOLLOWUP_PREFIX if story.get("followup") else "")
+    head = f'{story["flags"]} {prefix}{headline}'.strip()
+    credit = [c for c in story.get("credit", []) if c.lower() not in headline.lower()] if config.SHOW_SOURCES else []
+    credit = credit[: config.MAX_SOURCES_SHOWN]
+    while credit and len(head) + 3 + len(", ".join(credit)) > 250:
+        credit = credit[:-1]  # keep room for hashtags on X
+    if credit:
+        head += " – " + ", ".join(credit)
+    tags = story.get("tags", [])
+    x_tags = []
+    for t in tags[: config.MAX_HASHTAGS_X]:
+        if len(head) + 2 + len(" ".join(x_tags + [t])) <= 280:
+            x_tags.append(t)
+    tagged = f"{head}\n\n{' '.join(x_tags)}" if x_tags else head[:280]
+    ig_tags = " ".join(tags[: config.MAX_HASHTAGS_INSTAGRAM])
+    return {"plain": head, "tagged": tagged, "topic": threads_topic(tags), "story": story,
+            "headline": (config.FOLLOWUP_PREFIX if story.get("followup") else "") + headline,
+            "credit_main": credit[0] if credit else "",
+            "social_caption": tagged,
+            "alt": f"{config.BRAND_NAME} headline card: {headline}" + (f" (Source: {credit[0]})" if credit else ""),
+            "ig_caption": f"{head}\n\n{ig_tags}\n\nAutomated headline alert. Not financial advice.".strip()}
+
+
+# ----------------------------------------------------------------------------
+# Main
+# ----------------------------------------------------------------------------
+def main() -> int:
+    if os.environ.get("BOT_ENABLED", "true").lower() == "false":
+        print("BOT_ENABLED=false -> kill switch on, doing nothing.")
+        return 0
+    dry = os.environ.get("DRY_RUN", "false").lower() == "true"
+    now = time.time()
+
+    items = load(ITEMS_FILE, {})
+    posted = load(POSTED_FILE, [])
+    first_run = not ITEMS_FILE.exists()
+
+    print(f"Reading {len(config.FEEDS)} feeds...")
+    raws = fetch_all([f["url"] for f in config.FEEDS])
+    feeds_ok = 0
+    for feed in config.FEEDS:
+        raw = raws.get(feed["url"])
+        entries = parse_feed(raw) if raw else []
+        if entries:
+            feeds_ok += 1
+            n = collect(items, feed, entries, now)
+            print(f"  {feed['name']}: +{n}")
+        elif raw:
+            print(f"  ! {feed['name']}: no headlines in response")
+    print(f"Feeds working: {feeds_ok}/{len(config.FEEDS)}")
+    health_check(feeds_ok, now)
+
+    # forget old stuff so the state files stay small
+    items = {k: v for k, v in items.items() if v["seen"] > now - 12 * 3600}
+    posted = [p for p in posted if p["ts"] > now - 3 * 86400]
+
+    price_state = load(PRICES_FILE, {})
+    print("Checking live prices...")
+    alerts = prices.price_alerts(price_state, now)
+    save(PRICES_FILE, price_state)
+
+    if first_run:
+        for it in items.values():
+            it["baseline"] = True
+        print("First run: saved current headlines and prices as a baseline, posting nothing.")
+        save(ITEMS_FILE, items)
+        save(POSTED_FILE, posted)
+        return 0
+
+    trends = trending_terms()
+    print(f"Trending searches loaded: {len(trends)}")
+    if config.REQUIRE_FOCUS_COUNTRY:
+        alerts = [a for a in alerts if a.get("focus")]
+    stories = find_stories(items, posted, now, trends) + alerts
+    stories.sort(key=lambda s: (s["priority"], s.get("focus", False)), reverse=True)
+    print(f"Price alerts: {len(alerts)}")
+    last_24h = sum(1 for p in posted if p["ts"] > now - 86400)
+    budget = min(config.MAX_POSTS_PER_RUN, config.MAX_POSTS_PER_DAY - last_24h)
+    print(f"Confirmed stories: {len(stories)} | posts in last 24h: {last_24h} | can post now: {max(budget, 0)}")
+
+    platforms = enabled_platforms()
+    print(f"Auto-posting to: {', '.join(platforms) or 'NONE (add secrets)'}")
+
+    done_this_run: list[set[str]] = []
+    digest_items: list[dict] = []
+    count = 0
+    for story in stories:
+        if count >= max(budget, 0):
+            break
+        words = set(story["words"])
+        if words and not story["followup"] and any(similar(words, d) for d in done_this_run):
+            continue  # same story found twice in this run
+        p = build_posts(story)
+        print(f"\n>>> {'[follow-up] ' if story['followup'] else ''}{p['tagged']}"
+              f"\n    Threads topic: {p['topic']} | sources: {', '.join(story['sources'])}")
+        if dry:
+            print("    (DRY_RUN - not posted)")
+            if images.available() and count < 10:
+                PREVIEW_DIR.mkdir(exist_ok=True)
+                (PREVIEW_DIR / f"card_{count + 1}.jpg").write_bytes(card_image(p))
+            done_platforms: list[str] = []
+        else:
+            if count:
+                time.sleep(config.POST_SPACING_SECONDS)  # natural spacing, like a squawk desk
+            ok = tried = 0
+            done_platforms = []
+            for name in platforms:
+                if not platform_wants(name, story, posted, now):
+                    continue
+                tried += 1
+                try:
+                    pid = PLATFORMS[name][0](p)
+                    ok += 1
+                    done_platforms.append(name)
+                    print(f"    ✓ {name} {pid}")
+                except Exception as e:  # noqa: BLE001  one platform failing never stops the others
+                    print(f"    ! {name} failed: {e}")
+            if tried and ok == 0:
+                continue  # everything failed - try again next run (no X alert either)
+            try:
+                notify_x_link(p, story["sources"])
+            except Exception as e:  # noqa: BLE001
+                print(f"    ! X alert failed: {e}")
+        count += 1
+        done_this_run.append(words)
+        if story["priority"] >= config.DIGEST_MIN_PRIORITY:
+            digest_items.append(queue_for_digest(p, story, now))
+        posted.append({"ts": now, "text": p["tagged"], "words": story["words"], "sources": story["sources"],
+                       "item_ids": story["item_ids"], "story_id": story["story_id"],
+                       "platforms": done_platforms})
+
+    save(ITEMS_FILE, items)
+    save(POSTED_FILE, posted)
+    if config.DIGEST_PLATFORMS:
+        try:
+            run_digest(now, dry, digest_items)
+        except Exception as e:  # noqa: BLE001  the digest must never break live posting
+            print(f"  ! digest error: {e}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
