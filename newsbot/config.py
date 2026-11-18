@@ -68,7 +68,7 @@ FEEDS = [
 ]
 
 # How many DIFFERENT owners must report the same story (non-official news).
-MIN_SOURCES = 3
+MIN_SOURCES = 2
 
 # Official feeds publish lots of routine notices. Only post official items
 # whose title contains one of these words.
