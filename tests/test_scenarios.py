@@ -124,6 +124,7 @@ def setup():
     bot.config.PRICE_SYMBOLS = [
         {"symbol": "JPY=X", "name": "USD/JPY", "flag": "🇯🇵", "tag": "#USDJPY", "step": 1, "pct": [1, 1.5, 2], "dp": 2}]
     bot.config.MAX_POSTS_PER_RUN = 10
+    bot.config.TRUSTED_OWNERS = []          # scenarios use cnbc/bbc/nikkei as stand-ins; s22 tests trusted
     bot.config.POST_SPACING_SECONDS = 0
     bot.fetch, prices.fetch_quote = net.fetch, net.quote
     bot.http_post, bot.http_post_file = net.http_post, net.http_post_file
@@ -425,6 +426,21 @@ def s21_no_stale_alerts_after_setup():
     run(net)
     assert not net.posts("Threads")
     return "moves that happened before setup are not posted as 'news' (the day-one burst you saw)"
+
+
+def s22_trusted_outlet_breaking_news_posts_alone():
+    net = setup()
+    bot.config.TRUSTED_OWNERS = ["cnbc"]
+    run(net)
+    net.feeds["cnbc"].append("Nvidia names Colette Kress permanent CEO")
+    net.feeds["guardian"].append("Nvidia board meets to discuss leadership")          # untrusted single: waits
+    run(net)
+    t = [c[2]["text"] for c in net.posts("Threads")]
+    assert t == ["🇺🇸 Nvidia Names Colette Kress Permanent CEO – CNBC"], t
+    net.feeds["bbc"].append("Nvidia names Kress as permanent chief executive")       # later copy: not reposted
+    run(net)
+    assert net.posts("Threads") == []
+    return "trusted outlet (CNBC) breaking headline posted alone; untrusted single waited; later copy skipped"
 
 
 def age_queue(seconds):

@@ -115,6 +115,13 @@ def is_blocked(title: str) -> bool:
     low = re.sub(r"\bmay\s+(?=\d)", "month ", low)
     if title.startswith("May "):
         low = " month " + low[5:]
+    plain = title.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
+    low = low.replace("’", "'").replace("‘", "'")
+    if plain.lstrip("'\" ").startswith(tuple(config.BLOCKED_STARTS)):
+        return True
+    # TV/podcast soundbites: "Anthropic's Valuation Seems Justified: Thakker"
+    if re.search(r":\s+[A-Z][\w.'-]*(?:'s)?(?:\s+[A-Z][\w.'-]*){0,2}$", plain) and not re.search(r"\d", plain.split(":")[-1]):
+        return True
     return any(p in low for p in config.BLOCKED_PHRASES)
 
 
@@ -410,7 +417,10 @@ def find_stories(items: dict, posted: list, now: float, trends: list[str] | None
         ]
         owners = {g["owner"] for g in group}
         official = [g for g in group if g.get("official")]
-        if len(owners) < config.MIN_SOURCES and not official:
+        trusted = [g for g in group if g["owner"] in config.TRUSTED_OWNERS
+                   and g["seen"] >= now - config.TRUSTED_MAX_AGE_MINUTES * 60
+                   and (g.get("published") or now) >= now - 2 * config.TRUSTED_MAX_AGE_MINUTES * 60]
+        if len(owners) < config.MIN_SOURCES and not official and not trusted:
             continue
         for g in group:
             used.add(g["id"])

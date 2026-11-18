@@ -17,14 +17,21 @@ FEEDS = [
     {"name": "Bloomberg Markets",  "owner": "bloomberg",  "url": "https://feeds.bloomberg.com/markets/news.rss"},
     {"name": "Bloomberg Economics","owner": "bloomberg",  "url": "https://feeds.bloomberg.com/economics/news.rss"},
     {"name": "Bloomberg Politics", "owner": "bloomberg",  "url": "https://feeds.bloomberg.com/politics/news.rss"},
+    {"name": "Bloomberg Tech",     "owner": "bloomberg",  "url": "https://feeds.bloomberg.com/technology/news.rss"},
     {"name": "WSJ Markets",        "owner": "dowjones",   "url": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"},
     {"name": "WSJ World",          "owner": "dowjones",   "url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml"},
+    {"name": "WSJ Business",       "owner": "dowjones",   "url": "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml"},
+    {"name": "WSJ Tech",           "owner": "dowjones",   "url": "https://feeds.a.dj.com/rss/RSSWSJD.xml"},
     {"name": "MarketWatch",        "owner": "dowjones",   "url": "https://feeds.content.dowjones.io/public/rss/mw_topstories"},
     {"name": "FT Markets",         "owner": "ft",         "url": "https://www.ft.com/markets?format=rss"},
     {"name": "FT World",           "owner": "ft",         "url": "https://www.ft.com/world?format=rss"},
+    {"name": "FT Companies",       "owner": "ft",         "url": "https://www.ft.com/companies?format=rss"},
     {"name": "CNBC",               "owner": "cnbc",       "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"},
     {"name": "CNBC World",         "owner": "cnbc",       "url": "https://www.cnbc.com/id/100727362/device/rss/rss.html"},
     {"name": "CNBC Markets",       "owner": "cnbc",       "url": "https://www.cnbc.com/id/15839069/device/rss/rss.html"},
+    {"name": "CNBC Economy",       "owner": "cnbc",       "url": "https://www.cnbc.com/id/20910258/device/rss/rss.html"},
+    {"name": "CNBC Finance",       "owner": "cnbc",       "url": "https://www.cnbc.com/id/10000664/device/rss/rss.html"},
+    {"name": "CNBC Tech",          "owner": "cnbc",       "url": "https://www.cnbc.com/id/19854910/device/rss/rss.html"},
     {"name": "Yahoo Finance",      "owner": "yahoo",      "url": "https://finance.yahoo.com/news/rssindex"},
     {"name": "Fox Business",       "owner": "fox",        "url": "https://moxie.foxbusiness.com/google-publisher/latest.xml"},
     {"name": "Investing.com",      "owner": "investing",  "url": "https://www.investing.com/rss/news.rss"},
@@ -69,6 +76,13 @@ FEEDS = [
 
 # How many DIFFERENT owners must report the same story (non-official news).
 MIN_SOURCES = 2
+
+# TRUSTED outlets post from ONE source (First Squawk style), but only headlines
+# first seen in the last TRUSTED_MAX_AGE_MINUTES, so it's genuinely breaking news.
+# Empty list [] = every story needs MIN_SOURCES. Rumour/"reportedly" headlines are
+# still blocked, and so is anything not about markets or geopolitics.
+TRUSTED_OWNERS = ["bloomberg", "dowjones", "ft", "cnbc", "nikkei", "bbc"]
+TRUSTED_MAX_AGE_MINUTES = 20
 
 # Official feeds publish lots of routine notices. Only post official items
 # whose title contains one of these words.
@@ -151,7 +165,21 @@ BLOCKED_PHRASES = [
     "bloomberg reports", "reuters reports", "bloomberg news reports", "wsj reports", "ft reports",
     "cnbc reports", "axios reports", "the information reports", "nikkei reports", "report: ",
     ", bloomberg", ", reuters", ", wsj", "- bloomberg", "– bloomberg", "per bloomberg", "per reuters",
+    # features & opinion that trusted outlets mix into their feeds
+    "the big take", "big take:", "column:", "commentary", "op-ed", "interview:", "q&a", "review:",
+    "the week in", "what's next", "five things", "5 things", "chart of the day", "charts:", "cartoon",
+    "obituary", "letter:", "letters:", "lex:", "in pictures", "the morning", "evening briefing",
+    "markets wrap", "stock market today", "live news", "playbook", "how i ", "my ", "why i ",
+    # video / podcast shows (titles like "S&P Falls | Closing Bell")
+    "| closing bell", "| bloomberg", "| the close", "| daybreak", "| surveillance", "| odd lots",
+    "| balance of power", "| wall street week", "| the big take", "| squawk", "| power lunch",
+    "| fast money", "| mad money", "| the exchange", "| money movers", "| podcast", "| video",
+    ": how ", ": why ", ": what ", ": inside ",
 ]
+
+# Headlines STARTING with these are features/explainers, not breaking news.
+BLOCKED_STARTS = ["How ", "Why ", "What ", "What's ", "Inside ", "Opinion", "Analysis", "Explainer", "Here's ",
+                  "These ", "This Is ", "Meet ", "The Case For", "The Case Against", "Patching "]
 
 # ===========================================================================
 # 3. COUNTRIES -> flag + hashtag. Up to MAX_FLAGS flags lead each post, in
@@ -166,11 +194,17 @@ COUNTRIES = {
            "fed", "federal reserve", "powell", "wall street", "nasdaq", "dow", "s&p", "us treasury",
            "treasuries", "greenback", "us-china", "us-india", "us-iran", "new york",
            "nvidia", "apple", "microsoft", "google", "alphabet", "amazon", "meta", "tesla", "openai",
-           "intel", "amd", "boeing", "jpmorgan", "goldman", "blackrock", "berkshire", "exxon", "chevron"]},
+           "intel", "amd", "boeing", "jpmorgan", "goldman", "blackrock", "berkshire", "exxon", "chevron",
+           "anthropic", "palo alto", "netflix", "oracle", "salesforce", "broadcom", "qualcomm", "micron",
+           "adobe", "ibm", "walmart", "costco", "citigroup", "citi", "bank of america", "wells fargo",
+           "morgan stanley", "visa", "mastercard", "paypal", "coinbase", "uber", "airbnb", "pfizer",
+           "eli lilly", "moderna", "johnson & johnson", "ford", "general motors", "spacex", "xai",
+           "coca-cola", "pepsico", "mcdonald's", "starbucks", "disney", "nike", "caterpillar", "dell"]},
     "IN": {"flag": "🇮🇳", "tag": "#India", "words": ["india", "indian", "new delhi", "delhi", "modi",
            "jaishankar", "sitharaman", "rbi", "sebi", "sensex", "nifty", "dalal street", "rupee",
            "mumbai", "lok sabha", "india-us", "indo-us", "reliance", "adani", "tata", "infosys", "hdfc",
-           "icici", "indigo", "wipro", "tcs"]},
+           "icici", "indigo", "wipro", "tcs", "bajaj", "maruti", "larsen", "ongc", "zomato", "eternal",
+           "paytm", "hcl", "kotak", "axis bank", "vedanta", "sun pharma", "hindustan unilever", "itc"]},
     "CN": {"flag": "🇨🇳", "tag": "#China", "words": ["china", "chinese", "beijing", "xi jinping", "xi",
            "pboc", "yuan", "renminbi", "shanghai", "shenzhen", "csi 300", "alibaba", "tencent", "byd", "huawei"]},
     "JP": {"flag": "🇯🇵", "tag": "#Japan", "words": ["japan", "japanese", "tokyo", "boj", "bank of japan",
@@ -370,7 +404,7 @@ DIGEST_PLATFORMS = ["Facebook", "Instagram"]
 DIGEST_MIN_PRIORITY = 2          # 2 = markets + geopolitics; 3 = markets & price alerts only
 DIGEST_MAX_SLIDES = 10           # Instagram carousels allow up to 10 via the API
 DIGEST_COVER = False             # False = slide 1 is the top headline itself (no summary cover slide)
-DIGEST_TIMEZONE = "UTC"          # hour labels, e.g. "America/New_York" or "Asia/Kolkata"
+DIGEST_TIMEZONE = "America/New_York"   # hours & labels in Eastern time ("16:00–17:00 EST"); or "UTC", "Asia/Kolkata"
 DIGEST_MAX_ATTEMPTS = 3          # retries per platform if Facebook/Instagram is down
 IMAGE_MIN_PRIORITY = 3          # 3 = markets + price alerts only; 2 = also geopolitics
 MAX_HASHTAGS_INSTAGRAM = 5
@@ -386,7 +420,7 @@ CARD_ACCENT_UPDATE = (90, 160, 255)    # blue pill
 # ===========================================================================
 # 8. LIMITS & MATCHING
 # ===========================================================================
-MAX_POSTS_PER_DAY = 150   # rolling 24h (Threads allows 250)
+MAX_POSTS_PER_DAY = 200   # rolling 24h (Threads allows 250)
 MAX_POSTS_PER_RUN = 5     # per 5-minute run
 FRESH_HOURS = 3           # ignore news older than this
 MIN_SHARED_WORDS = 3      # headlines must share this many key words...

@@ -4,6 +4,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "newsbot"))
 import bot  # noqa: E402
 
 NOW = time.time()
+_TRUSTED = list(bot.config.TRUSTED_OWNERS)
+bot.config.TRUSTED_OWNERS = []          # most tests check the multi-source rule; trusted tests switch it on
 
 def feed(name, owner):
     return {"name": name, "owner": owner}
@@ -41,6 +43,49 @@ def test_two_independent_sources_enough_when_min_is_2():
         assert run(it) == [], "same company twice is not 2 sources"
     finally:
         bot.config.MIN_SOURCES = old
+
+def test_trusted_outlet_posts_alone_when_fresh():
+    bot.config.TRUSTED_OWNERS = _TRUSTED
+    try:
+        _test_trusted_outlet_posts_alone_when_fresh()
+    finally:
+        bot.config.TRUSTED_OWNERS = []
+
+def _test_trusted_outlet_posts_alone_when_fresh():
+    it = {}
+    add(it, "Bloomberg Markets", "bloomberg", "Nvidia names Colette Kress permanent CEO", age_min=5)
+    s = run(it)
+    assert len(s) == 1 and s[0]["credit"] == ["Bloomberg"], s
+    assert s[0]["flags"] == "🇺🇸"
+
+def test_untrusted_or_old_single_source_waits():
+    bot.config.TRUSTED_OWNERS = _TRUSTED
+    try:
+        _test_untrusted_or_old_single_source_waits()
+    finally:
+        bot.config.TRUSTED_OWNERS = []
+
+def _test_untrusted_or_old_single_source_waits():
+    it = {}
+    add(it, "Investing.com", "investing", "Nvidia names Colette Kress permanent CEO")
+    assert run(it) == [], "untrusted outlet alone must not post"
+    it = {}
+    bot.collect(it, {"name": "Bloomberg", "owner": "bloomberg"},
+                [{"title": "Nvidia names Colette Kress permanent CEO", "published": NOW - 600}], NOW - 3600)
+    assert run(it) == [], "trusted headline first seen an hour ago is not breaking any more"
+
+def test_trusted_rumour_still_blocked():
+    bot.config.TRUSTED_OWNERS = _TRUSTED
+    try:
+        _test_trusted_rumour_still_blocked()
+    finally:
+        bot.config.TRUSTED_OWNERS = []
+
+def _test_trusted_rumour_still_blocked():
+    it = {}
+    add(it, "Bloomberg Markets", "bloomberg", "Apple said to weigh buying Disney, people familiar say", age_min=2)
+    add(it, "CNBC", "cnbc", "Opinion: why the Fed should cut rates now", age_min=2)
+    assert run(it) == []
 
 def test_same_owner_counts_once():
     old = bot.config.MIN_SOURCES
@@ -382,6 +427,21 @@ def test_secondhand_reports_blocked():
     assert not bot.is_blocked("US jobs report shows 250,000 added in October")          # 'report' alone is fine
     assert not bot.is_blocked("Nvidia interim CEO Colette Kress promises salary hikes to 49,000 employees")
 
+def test_features_and_video_titles_blocked():
+    for t in ["CEO turned informant: How the FDA built a case against executives",
+              "What’s next for the AI trade after Nvidia’s blowout results",
+              "How the FDA built a case against drug executives",
+              "S&P Falls to Lowest Since July | Closing Bell",
+              "Patching the AI Trade"]:
+        assert bot.is_blocked(t), t
+    assert bot.is_blocked("How the FDA built a case against drug executives")
+    assert not bot.is_blocked("Foreign Holdings of US Treasuries Decline by Most Since March")
+    assert not bot.is_blocked("Zelenskyy Says US Envoys to Brief Allies on Trump-Xi-Putin Talks")
+    assert bot.is_blocked("Anthropic’s Valuation Seems Justified: Thakker")
+    assert bot.is_blocked("Seeing More Asset-Management Consolidation: Goldman’s Nachmann")
+    assert not bot.is_blocked("Japan GDP shrinks: annualised 1.8%")                    # data after colon is news
+    assert not bot.is_blocked("Fed minutes: Almost all officials saw further hikes as likely")
+
 def test_may_month_not_blocked():
     assert not bot.is_blocked("US inflation falls to lowest since May 2024")
     assert not bot.is_blocked("May retail sales jump 1.2%")
@@ -704,13 +764,16 @@ def test_digest_single_item_no_cover():
 def test_hour_window_label():
     import datetime as dt
     t = dt.datetime(2026, 11, 18, 14, 25, tzinfo=dt.timezone.utc).timestamp()
+    bot.config.DIGEST_TIMEZONE = "UTC"
     assert bot.hour_window(t, t) == "14:00–15:00 UTC"
     assert bot.hour_window(t, t + 2 * 3600) == "14:00–17:00 UTC"
-    bot.config.DIGEST_TIMEZONE = "Asia/Kolkata"
     try:
+        bot.config.DIGEST_TIMEZONE = "Asia/Kolkata"
         assert bot.hour_window(t, t) == "19:00–20:00 IST", bot.hour_window(t, t)
+        bot.config.DIGEST_TIMEZONE = "America/New_York"
+        assert bot.hour_window(t, t) == "09:00–10:00 EST", bot.hour_window(t, t)
     finally:
-        bot.config.DIGEST_TIMEZONE = "UTC"
+        bot.config.DIGEST_TIMEZONE = "America/New_York"
 
 def test_feed_parsing_rss_and_atom():
     rss = b"""<rss><channel><item><title>Fed holds rates steady</title><link>http://x</link>
