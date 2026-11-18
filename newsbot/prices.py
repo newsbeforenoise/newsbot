@@ -57,13 +57,6 @@ def check_symbol(cfg: dict, price: float, prev: float, mtime: int, st: dict, now
     """Pure logic. Updates state `st` in place; returns one alert or None."""
     last = st.get("last")
     st["last"] = price
-    if last is None:                       # first time we see it: baseline only
-        return None
-    if mtime and now - mtime > STALE_SECONDS:
-        return None
-    alert_text = None
-
-    # 1) daily % move thresholds (each once per day per direction)
     chg = (price / prev - 1) * 100
     day = datetime.fromtimestamp(mtime or now, timezone.utc).strftime("%Y-%m-%d")
     done = st.setdefault("pct", {})
@@ -71,6 +64,16 @@ def check_symbol(cfg: dict, price: float, prev: float, mtime: int, st: dict, now
         del done[k]
     today = done.setdefault(day, [])
     sign = "+" if chg >= 0 else "-"
+    if last is None:
+        # First time we see this market: just record it. Moves that ALREADY happened
+        # today are marked as done, so we never post stale "catch-up" alerts.
+        today.extend(f"{sign}{t}" for t in cfg.get("pct", []) if abs(chg) >= t)
+        return None
+    if mtime and now - mtime > STALE_SECONDS:
+        return None
+    alert_text = None
+
+    # 1) daily % move thresholds (each once per day per direction)
     hit = [t for t in sorted(cfg.get("pct", [])) if abs(chg) >= t and f"{sign}{t}" not in today]
     if hit:
         for t in cfg["pct"]:

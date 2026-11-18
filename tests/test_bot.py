@@ -309,6 +309,15 @@ def test_price_first_seen_is_baseline():
     st = {}
     assert prices.check_symbol(JPY, 159.5, 159.0, int(NOW), st, NOW) is None and st["last"] == 159.5
 
+def test_baseline_marks_moves_that_already_happened():
+    st = {}
+    assert prices.check_symbol(BTC, 66500.0, 71000.0, int(NOW), st, NOW) is None   # already -6.3% at setup
+    st["last"] = 66600.0
+    assert prices.check_symbol(BTC, 66400.0, 71000.0, int(NOW), st, NOW + 300) is None, "stale catch-up alert"
+    st["last"] = 66400.0
+    a = prices.check_symbol(BTC, 64000.0, 71000.0, int(NOW), st, NOW + 600)         # NEW move past -8%
+    assert a and "Down 9.9%" in a["text"], a
+
 def test_price_level_cross_up():
     st = {"last": 159.6}
     a = prices.check_symbol(JPY, 160.08, 159.9, int(NOW), st, NOW)

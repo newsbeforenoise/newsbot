@@ -1059,11 +1059,12 @@ def main() -> int:
     if config.REQUIRE_FOCUS_COUNTRY:
         alerts = [a for a in alerts if a.get("focus")]
     stories = find_stories(items, posted, now, trends) + alerts
-    stories.sort(key=lambda s: (s["priority"], s.get("focus", False)), reverse=True)
+    stories.sort(key=lambda s: (s["priority"], s.get("focus", False), not s.get("is_price")), reverse=True)
     print(f"Price alerts: {len(alerts)}")
     last_24h = sum(1 for p in posted if p["ts"] > now - 86400)
-    budget = min(config.MAX_POSTS_PER_RUN, config.MAX_POSTS_PER_DAY - last_24h)
-    print(f"Confirmed stories: {len(stories)} | posts in last 24h: {last_24h} | can post now: {max(budget, 0)}")
+    budget = min(config.MAX_POSTS_PER_RUN, config.MAX_POSTS_PER_DAY - last_24h)       # news
+    day_left = config.MAX_POSTS_PER_DAY - last_24h                                      # everything
+    print(f"Confirmed stories: {len(stories)} | posts in last 24h: {last_24h} | news slots now: {max(budget, 0)}")
 
     platforms = enabled_platforms()
     print(f"Auto-posting to: {', '.join(platforms) or 'NONE (add secrets)'}")
@@ -1071,9 +1072,12 @@ def main() -> int:
     done_this_run: list[set[str]] = []
     digest_items: list[dict] = []
     count = 0
+    news_count = 0
     for story in stories:
-        if count >= max(budget, 0):
-            break
+        if count >= max(day_left, 0):
+            break                                  # daily limit reached
+        if not story.get("is_price") and news_count >= max(budget, 0):
+            continue                               # news slots used; price alerts have their own allowance
         words = set(story["words"])
         if words and not story["followup"] and any(similar(words, d) for d in done_this_run):
             continue  # same story found twice in this run
@@ -1109,6 +1113,8 @@ def main() -> int:
             except Exception as e:  # noqa: BLE001
                 print(f"    ! X alert failed: {e}")
         count += 1
+        if not story.get("is_price"):
+            news_count += 1
         done_this_run.append(words)
         if story["priority"] >= config.DIGEST_MIN_PRIORITY:
             digest_items.append(queue_for_digest(p, story, now))

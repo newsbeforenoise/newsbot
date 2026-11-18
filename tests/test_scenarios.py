@@ -393,6 +393,40 @@ def s15_daily_post_limit():
     return f"daily limit ({lim}) reached: nothing more posted"
 
 
+def s20_price_alerts_never_crowd_out_news():
+    net = setup()
+    bot.config.MAX_POSTS_PER_RUN = 2
+    bot.config.PRICE_SYMBOLS = [
+        {"symbol": s, "name": n, "flag": "", "tag": "", "step": 0, "pct": [2], "dp": 0}
+        for s, n in [("A", "Gold"), ("B", "Silver"), ("C", "Oil"), ("D", "Bitcoin")]]
+    for s in "ABCD":
+        net.quotes[s] = (100.0, 100.0)
+    put(net, OLD); run(net)                                   # baseline (no moves yet)
+    for s in "ABCD":
+        net.quotes[s] = (95.0, 100.0)                         # 4 markets fall 5%...
+    put(net, NIKKEI); put(net, MSFT); put(net, VOLGOGRAD)     # ...while 3 news stories break
+    run(net)
+    texts = [c[2]["text"] for c in net.posts("Threads")]
+    news = [t for t in texts if "On The Day" not in t]
+    alerts = [t for t in texts if "On The Day" in t]
+    assert len(news) == 2 and len(alerts) == 4, texts         # news uses its 2 slots, alerts all still post
+    return "busy market: 2 news slots used AND all 4 price alerts posted (alerts have their own allowance)"
+
+
+def s21_no_stale_alerts_after_setup():
+    net = setup()
+    bot.config.PRICE_SYMBOLS = [{"symbol": "G", "name": "Gold", "flag": "", "tag": "", "step": 0, "pct": [2, 3], "dp": 1}]
+    net.quotes["G"] = (3727.2, 3862.0)                        # already -3.5% when the bot starts
+    run(net)
+    net.quotes["G"] = (3725.0, 3862.0)
+    run(net)
+    assert not net.posts("Threads"), "posted a move that happened before the bot started"
+    net.quotes["G"] = (3700.0, 3862.0)                        # still within the -3% level: nothing new
+    run(net)
+    assert not net.posts("Threads")
+    return "moves that happened before setup are not posted as 'news' (the day-one burst you saw)"
+
+
 def age_queue(seconds):
     """Pretend time passed: move everything in the digest queue back in time."""
     st = json.loads(bot.DIGEST_FILE.read_text())
