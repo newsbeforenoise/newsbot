@@ -1,0 +1,20 @@
+name: tests
+
+# Runs all tests whenever you change any file (e.g. after editing config.py).
+# A red ❌ on the commit means something you changed broke the bot - fix it before it posts.
+on:
+  push:
+    branches-ignore: [state]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet pillow
+      - name: Unit tests
+        run: python3 tests/test_bot.py
+      - name: End-to-end scenarios
+        run: python3 tests/test_scenarios.py
