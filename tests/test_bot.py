@@ -352,6 +352,13 @@ def test_known_outlet_suffix_stripped_only():
     assert bot.clean_headline("Japan - US Trade Talks Resume") == "Japan - US Trade Talks Resume"
     assert bot.clean_headline("Fed holds rates - Powell Says Inflation Sticky") == "Fed holds rates - Powell Says Inflation Sticky"
 
+def test_secondhand_reports_blocked():
+    assert bot.is_blocked("Anthropic weighs IPO pricing of $80-$85 a share, Bloomberg reports")
+    assert bot.is_blocked("Anthropic Said to Be Weighing IPO Price as High as $85 Per Share")
+    assert bot.is_blocked("Apple plans new chip, people familiar with the matter say")
+    assert not bot.is_blocked("US jobs report shows 250,000 added in October")          # 'report' alone is fine
+    assert not bot.is_blocked("Nvidia interim CEO Colette Kress promises salary hikes to 49,000 employees")
+
 def test_may_month_not_blocked():
     assert not bot.is_blocked("US inflation falls to lowest since May 2024")
     assert not bot.is_blocked("May retail sales jump 1.2%")

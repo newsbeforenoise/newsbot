@@ -145,6 +145,12 @@ BLOCKED_PHRASES = [
     "what to know", "what we know", "here's why", "here is why", "how to", "denies",
     "fake", "satire", "?", "best stocks", "stocks to buy", "top picks", "should you",
     "sponsored", "newsletter", "morning bid", "week ahead",
+    # second-hand reports: many outlets repeating ONE source are not independent confirmation
+    "said to be", "said to have", "said to plan", "said to weigh", "people familiar", "familiar with the matter",
+    "according to a report", "according to reports", "report says", "reports say", "media report",
+    "bloomberg reports", "reuters reports", "bloomberg news reports", "wsj reports", "ft reports",
+    "cnbc reports", "axios reports", "the information reports", "nikkei reports", "report: ",
+    ", bloomberg", ", reuters", ", wsj", "- bloomberg", "– bloomberg", "per bloomberg", "per reuters",
 ]
 
 # ===========================================================================
