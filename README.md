@@ -2,8 +2,8 @@
 
 - **Fast squawk-style text** → Threads, Bluesky, Telegram channel, Mastodon, Discord (and X, via a one-tap link
   in your private Telegram, because X has no free API).
-- **Hourly swipeable carousel** → Instagram and Facebook: ONE post per hour with a cover slide
-  ("Global Markets This Hour", numbered headlines) + one black card per headline (max 10 slides).
+- **Hourly swipeable carousel** → Instagram and Facebook: ONE post per hour, one black card per headline
+  (slide 1 = the top headline, max 10 slides). Optional summary cover slide: `DIGEST_COVER = True`.
 All automatic. If an image ever fails, that platform posts plain text instead. Change the split in `CARD_PLATFORMS`.
 
 How it works (every 5 minutes, free on GitHub Actions):
@@ -31,10 +31,10 @@ How it works (every 5 minutes, free on GitHub Actions):
 6. **Hashtags:** up to 3 on X/Bluesky/Telegram/Mastodon/Discord (+ a matching Google Trends search); Threads gets its one topic tag.
 7. **Auto-posts** to Threads, Bluesky, Telegram channel, Mastodon, Discord (whichever you set up). If one fails, the others still post.
    **Hourly carousel** on Instagram and Facebook (`DIGEST_PLATFORMS`): every headline of the hour is collected,
-   and at the top of the next hour (≈5–15 min past, GitHub timing) ONE post goes out: a cover slide listing the
-   hour's headlines + one card per headline (black background, white headline, MARKETS / GEOPOLITICS /
-   PRICE ALERT / UPDATE pill, country tags, source, @NewsB4Noise). Most important first; if more than 9,
-   the top 9 are shown and the caption says how many more. 1 headline = a single image; 0 = no post.
+   and at the top of the next hour (≈5–15 min past, GitHub timing) ONE post goes out: one card per headline,
+   slide 1 = the most important (optional summary cover slide: `DIGEST_COVER = True`) (black background, white headline, MARKETS / GEOPOLITICS /
+   PRICE ALERT / UPDATE pill, country tags, source, @NewsB4Noise). Most important first; if more than 10,
+   the top 10 are shown and the caption says how many more. 1 headline = a single image; 0 = no post.
    Max 24 posts/day, far under Instagram's limit. If Instagram is down, it's retried (Facebook isn't re-posted).
    Hour labels use `DIGEST_TIMEZONE` (UTC by default; e.g. "America/New_York", "Asia/Kolkata").
    Set `DIGEST_PLATFORMS = []` to go back to one Facebook/Instagram post per headline.

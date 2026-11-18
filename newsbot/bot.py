@@ -787,11 +787,12 @@ def queue_for_digest(p: dict, story: dict, now: float) -> dict:
 def build_digest(items: list[dict]) -> dict:
     """Slides (JPEG bytes) + caption for one hourly carousel."""
     picked = sorted(items, key=lambda q: (q["priority"], q.get("focus", False), q["ts"]), reverse=True)
-    picked = picked[: config.DIGEST_MAX_SLIDES - (1 if len(items) > 1 else 0)]
+    cover = config.DIGEST_COVER and len(items) > 1
+    picked = picked[: config.DIGEST_MAX_SLIDES - (1 if cover else 0)]
     window = hour_window(min(q["ts"] for q in items), max(q["ts"] for q in items))
     when = datetime.fromtimestamp(max(q["ts"] for q in items), _tz())
     slides = []
-    if len(items) > 1:
+    if cover:
         slides.append(images.render_cover([q["headline"] for q in picked], window, len(items), when))
     for q in picked:
         slides.append(images.render(q["story"], q["headline"], q["credit"], when))

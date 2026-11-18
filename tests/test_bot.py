@@ -637,11 +637,17 @@ def _qitem(i, prio=3, ts=None):
             "plain": f"🇺🇸 Headline Number {i} Moves Markets – CNBC", "tags": ["#Fed", "#USA", "#Markets"],
             "priority": prio, "focus": True, "story": {"priority": prio, "countries": ["US"]}}
 
-def test_digest_caps_at_10_slides_with_cover():
+def test_digest_caps_at_10_slides_no_cover():
     items = [_qitem(i) for i in range(14)]
     dg = bot.build_digest(items)
     assert len(dg["slides"]) == 10 and dg["count"] == 14
-    assert "+5 more headlines" in dg["caption"] and dg["caption"].count("\n9. ") == 1
+    assert "+4 more headlines" in dg["caption"] and dg["caption"].count("\n10. ") == 1
+    bot.config.DIGEST_COVER = True
+    try:
+        dg2 = bot.build_digest(items)
+        assert len(dg2["slides"]) == 10 and "+5 more headlines" in dg2["caption"]
+    finally:
+        bot.config.DIGEST_COVER = False
     assert "#Fed" in dg["caption"] and "#Markets" in dg["caption"] and len(dg["caption"]) <= 2150
     from PIL import Image
     import io

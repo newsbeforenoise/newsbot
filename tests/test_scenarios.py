@@ -304,20 +304,20 @@ def s09_hourly_carousel_on_facebook_and_instagram():
     run(net)
     fb_feed = [c for c in net.calls if c[0] == "Facebook" and c[1] == "feed"]
     uploads = [c for c in net.calls if c[0] == "Facebook" and c[1] == "upload-image"]
-    assert len(fb_feed) == 1 and len(uploads) == 5, net.calls                # cover + 4 cards
+    assert len(fb_feed) == 1 and len(uploads) == 4, net.calls                # 4 headline cards, no cover
     assert all(u[2]["published"] == "false" for u in uploads)
-    assert sum(1 for k in fb_feed[0][2] if k.startswith("attached_media")) == 5
+    assert sum(1 for k in fb_feed[0][2] if k.startswith("attached_media")) == 4
     cap = fb_feed[0][2]["text"]
     assert cap.startswith("🕐 Global markets this hour (") and "1. " in cap and "4. " in cap, cap
     ig = [c for c in net.calls if c[0] == "Instagram"]
     children = [c for c in ig if c[1] == "media" and c[2].get("is_carousel_item") == "true"]
     parent = [c for c in ig if c[1] == "media" and c[2].get("children")]
-    assert len(children) == 5 and len(parent) == 1 and len(parent[0][2]["children"].split(",")) == 5, ig
+    assert len(children) == 4 and len(parent) == 1 and len(parent[0][2]["children"].split(",")) == 4, ig
     assert [c for c in ig if c[1] == "media_publish"], ig
     assert not net.posts("Threads"), "text platforms re-posted"
     run(net)
     assert not any(c[0] in ("Facebook", "Instagram") for c in net.calls), "digest posted twice"
-    return "after the hour: ONE Facebook post + ONE Instagram carousel (cover + 4 cards), not repeated"
+    return "after the hour: ONE Facebook post + ONE Instagram carousel (4 headline cards), not repeated"
 
 
 def s10_dry_run_sends_nothing_but_makes_previews():
@@ -444,8 +444,8 @@ def s19_dry_run_digest_previews():
     age_queue(3600); out = run(net)
     os.environ.pop("DRY_RUN")
     slides = sorted(bot.PREVIEW_DIR.glob("digest_*.jpg"))
-    assert net.calls == [] and len(slides) == 3 and "digest not posted" in out, (out, slides)
-    return "DRY_RUN: hourly carousel saved as preview slides (cover + 2 cards), nothing posted"
+    assert net.calls == [] and len(slides) == 2 and "digest not posted" in out, (out, slides)
+    return "DRY_RUN: hourly carousel saved as preview slides (2 headline cards), nothing posted"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]

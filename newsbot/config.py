@@ -362,7 +362,8 @@ IMAGE_DAILY_LIMITS = {"Facebook": 40, "Instagram": 25}   # only used if a platfo
 # Set DIGEST_PLATFORMS = [] to go back to one Facebook/Instagram post per headline.
 DIGEST_PLATFORMS = ["Facebook", "Instagram"]
 DIGEST_MIN_PRIORITY = 2          # 2 = markets + geopolitics; 3 = markets & price alerts only
-DIGEST_MAX_SLIDES = 10           # Instagram carousels allow up to 10 via the API (cover + 9 cards)
+DIGEST_MAX_SLIDES = 10           # Instagram carousels allow up to 10 via the API
+DIGEST_COVER = False             # False = slide 1 is the top headline itself (no summary cover slide)
 DIGEST_TIMEZONE = "UTC"          # hour labels, e.g. "America/New_York" or "Asia/Kolkata"
 DIGEST_MAX_ATTEMPTS = 3          # retries per platform if Facebook/Instagram is down
 IMAGE_MIN_PRIORITY = 3          # 3 = markets + price alerts only; 2 = also geopolitics
