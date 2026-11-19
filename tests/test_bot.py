@@ -2,6 +2,7 @@ import sys, time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "newsbot"))
 import bot  # noqa: E402
+bot.config.SHOW_STOCK_MOVE = False   # unit tests must not depend on live prices (update 13.5 has its own check)
 
 NOW = time.time()
 _TRUSTED = list(bot.config.TRUSTED_OWNERS)

@@ -1729,13 +1729,50 @@ def title_case(text: str) -> str:
     return " ".join("-".join(fix(part) for part in word.split("-")) for word in text.split(" "))
 
 
+_QUOTE_CACHE: dict = {}
+
+
+def stock_move_text(headline: str, now: float | None = None) -> str:
+    """' ($AMD −8.2%)' for companies named in the headline, using the live price.
+    Shown only when the market is open (fresh quote) and the move is at least STOCK_MOVE_MIN_PCT."""
+    if not getattr(config, "SHOW_STOCK_MOVE", False):
+        return ""
+    now = now or time.time()
+    low = " " + re.sub(r"[^a-z0-9& ]+", " ", headline.lower()) + " "
+    found: list[tuple[int, str]] = []
+    for name in sorted(config.STOCK_TICKERS, key=len, reverse=True):     # longest name first
+        sym = config.STOCK_TICKERS[name]
+        pos = low.find(f" {name} ")
+        if pos >= 0 and sym not in [x[1] for x in found]:
+            found.append((pos, sym))
+            low = low.replace(f" {name} ", " " + "#" * len(name) + " ")   # keep positions, block shorter overlaps
+    syms = [sym for _, sym in sorted(found)][: config.STOCK_MOVE_MAX_TICKERS]   # order as in the headline
+    bits = []
+    for sym in syms:
+        if sym not in _QUOTE_CACHE:
+            try:
+                _QUOTE_CACHE[sym] = prices.fetch_quote(sym)
+            except Exception:  # noqa: BLE001  a price lookup must never block a headline
+                _QUOTE_CACHE[sym] = None
+        q = _QUOTE_CACHE[sym]
+        if not q or not q[0] or not q[1] or (len(q) > 2 and q[2] and now - q[2] > config.STOCK_MOVE_MAX_AGE_MIN * 60):
+            continue
+        pct = (q[0] / q[1] - 1) * 100
+        if abs(pct) < config.STOCK_MOVE_MIN_PCT:
+            continue
+        label = sym.split(".")[0].split("-")[0]
+        bits.append(f"${label} {'+' if pct > 0 else '−'}{abs(pct):.1f}%")
+    return f" ({', '.join(bits)})" if bits else ""
+
+
 def build_posts(story: dict) -> dict:
     """plain  = flag + headline (Threads)
     tagged = flag + headline + up to MAX_HASHTAGS_X hashtags, <= 280 chars (X, Bluesky, Telegram...)
     topic  = single Threads topic tag"""
     headline = title_case(story["text"]) if config.TITLE_CASE else story["text"]
     prefix = config.POST_PREFIX + (config.FOLLOWUP_PREFIX if story.get("followup") else "")
-    head = f'{story["flags"]} {prefix}{headline}'.strip()
+    move = "" if story.get("is_price") or story.get("kind") else stock_move_text(headline)
+    head = f'{story["flags"]} {prefix}{headline}{move}'.strip()
     if story.get("breaking"):
         head = config.BREAKING_LABEL + head
     credit = [c for c in story.get("credit", []) if c.lower() not in headline.lower()] if config.SHOW_SOURCES else []

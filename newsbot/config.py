@@ -429,6 +429,32 @@ CARD_ACCENT_UPDATE = (90, 160, 255)    # blue pill
 # ===========================================================================
 # 8. LIMITS & MATCHING
 # ===========================================================================
+# ===========================================================================
+# LIVE STOCK MOVE IN HEADLINES (update 13.5)
+# "AMD Falls Amid Short Report ($AMD -8.2%) – Seeking Alpha"
+# Name in the headline (lower case, whole word) -> Yahoo symbol. Indian stocks use .NS.
+# ===========================================================================
+SHOW_STOCK_MOVE = True
+STOCK_MOVE_MIN_PCT = 1.0          # only show moves of at least 1% (up or down)
+STOCK_MOVE_MAX_AGE_MIN = 20       # price must be live (market open) - stale prices are never shown
+STOCK_MOVE_MAX_TICKERS = 2
+STOCK_TICKERS = {
+    "amd": "AMD", "nvidia": "NVDA", "apple": "AAPL", "microsoft": "MSFT", "alphabet": "GOOGL",
+    "google": "GOOGL", "amazon": "AMZN", "meta": "META", "tesla": "TSLA", "netflix": "NFLX",
+    "intel": "INTC", "broadcom": "AVGO", "qualcomm": "QCOM", "micron": "MU", "oracle": "ORCL",
+    "salesforce": "CRM", "adobe": "ADBE", "ibm": "IBM", "palantir": "PLTR", "coreweave": "CRWV",
+    "supermicro": "SMCI", "super micro": "SMCI", "arm holdings": "ARM", "tsmc": "TSM",
+    "boeing": "BA", "jpmorgan": "JPM", "goldman sachs": "GS", "morgan stanley": "MS",
+    "bank of america": "BAC", "citigroup": "C", "wells fargo": "WFC", "berkshire": "BRK-B",
+    "exxon": "XOM", "chevron": "CVX", "walmart": "WMT", "disney": "DIS", "nike": "NKE",
+    "coinbase": "COIN", "microstrategy": "MSTR", "uber": "UBER", "pfizer": "PFE",
+    "eli lilly": "LLY", "novo nordisk": "NVO", "alibaba": "BABA", "baidu": "BIDU", "nio": "NIO",
+    "reliance": "RELIANCE.NS", "tcs": "TCS.NS", "infosys": "INFY.NS", "hdfc bank": "HDFCBANK.NS",
+    "icici bank": "ICICIBANK.NS", "wipro": "WIPRO.NS", "adani enterprises": "ADANIENT.NS",
+    "adani": "ADANIENT.NS", "tata motors": "TATAMOTORS.NS", "zomato": "ZOMATO.NS",
+    "bajaj finance": "BAJFINANCE.NS", "larsen": "LT.NS", "bharti airtel": "BHARTIARTL.NS",
+}
+
 MAX_POSTS_PER_DAY = 0     # 0 = UNLIMITED (Telegram has no daily cap). Threads, Instagram and Facebook
                           # keep their own limits below (THREADS_DAILY_MAX, hourly carousels).
 MAX_POSTS_PER_RUN = 10    # per 5-minute run (15 s apart, well under Telegram's ~1 msg/second)
