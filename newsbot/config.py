@@ -406,6 +406,7 @@ DIGEST_MAX_SLIDES = 10           # Instagram carousels allow up to 10 via the AP
 DIGEST_COVER = False             # False = slide 1 is the top headline itself (no summary cover slide)
 DIGEST_TIMEZONE = "America/New_York"   # hours & labels in Eastern time ("16:00–17:00 EST"); or "UTC", "Asia/Kolkata"
 DIGEST_MAX_ATTEMPTS = 3          # retries per platform if Facebook/Instagram is down
+DIGEST_MAX_AGE_HOURS = 2         # never put headlines older than this in a carousel
 IMAGE_MIN_PRIORITY = 3          # 3 = markets + price alerts only; 2 = also geopolitics
 MAX_HASHTAGS_INSTAGRAM = 5
 FACEBOOK_PUBLISH = True          # False = upload to the Page unpublished, only to host the Instagram image

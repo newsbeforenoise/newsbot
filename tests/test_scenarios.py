@@ -443,6 +443,18 @@ def s22_trusted_outlet_breaking_news_posts_alone():
     return "trusted outlet (CNBC) breaking headline posted alone; untrusted single waited; later copy skipped"
 
 
+def s23_old_leftovers_never_reach_the_carousel():
+    net = setup()
+    run(net)
+    put(net, NIKKEI); run(net)
+    age_queue(5 * 3600)                                       # e.g. queued in test mode hours ago
+    put(net, MSFT); run(net)
+    age_queue(3600); run(net)
+    ig = [c for c in net.calls if c[0] == "Instagram" and c[1] == "media"]
+    assert len(ig) == 1 and not ig[0][2].get("children"), ig   # only the fresh Microsoft story, as a single image
+    return "headlines older than 2 hours are dropped from the hourly carousel (no stale leftovers)"
+
+
 def age_queue(seconds):
     """Pretend time passed: move everything in the digest queue back in time."""
     st = json.loads(bot.DIGEST_FILE.read_text())

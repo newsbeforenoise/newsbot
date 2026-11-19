@@ -80,7 +80,7 @@ def render(story: dict, headline: str, credit: str, now: datetime | None = None)
     # --- top bar: brand + time
     f_small = ImageFont.truetype(medium, 30)
     d.text((MARGIN, MARGIN), config.BRAND_NAME.upper(), font=f_small, fill=config.CARD_TEXT)
-    stamp = now.strftime("%d %b %Y · %H:%M UTC").upper()
+    stamp = (now.strftime("%d %b %Y · %H:%M ") + (now.tzname() or "UTC")).upper()
     d.text((W - MARGIN - d.textlength(stamp, font=f_small), MARGIN), stamp, font=f_small, fill=grey)
     d.line([(MARGIN, MARGIN + 62), (W - MARGIN, MARGIN + 62)], fill=(40, 40, 40), width=2)
 

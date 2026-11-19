@@ -551,6 +551,14 @@ def test_card_renders_jpeg_4x5():
     im = Image.open(io.BytesIO(jpg))
     assert im.format == "JPEG" and im.size == (1080, 1350)
 
+def test_card_time_label_matches_timezone():
+    from zoneinfo import ZoneInfo
+    import datetime as dt
+    ny = dt.datetime(2026, 11, 18, 18, 55, tzinfo=ZoneInfo("America/New_York"))
+    assert (ny.strftime("%d %b %Y · %H:%M ") + ny.tzname()).upper() == "18 NOV 2026 · 18:55 EST"
+    jpg = images.render({"priority": 3, "countries": ["US"]}, "Anthropic Raises $81bn In Record IPO", "CNBC", ny)
+    assert jpg[:2] == b"\xff\xd8"
+
 def test_card_labels():
     assert images.label_for({"is_price": True})[0] == "PRICE ALERT"
     assert images.label_for({"followup": True, "priority": 3})[0] == "UPDATE"

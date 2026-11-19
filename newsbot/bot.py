@@ -905,7 +905,8 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
     if not platforms and not dry:
         return
     st = load(DIGEST_FILE, {"queue": [], "batch": None})
-    st["queue"] = (st["queue"] + new_items)[-300:]
+    st["queue"] = [q for q in (st["queue"] + new_items)[-300:]
+                   if q["ts"] >= now - config.DIGEST_MAX_AGE_HOURS * 3600]   # drop stale leftovers
     cur = hour_key(now)
     if not st.get("batch"):
         ready = [q for q in st["queue"] if hour_key(q["ts"]) < cur]
