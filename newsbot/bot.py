@@ -624,9 +624,25 @@ def post_bluesky(p: dict) -> str:
 
 
 # --- Telegram public channel (photo + caption, or text) -----------------------
+def sent_but_unconfirmed(err: Exception) -> bool:
+    """A timeout means the request reached the server but no answer came back in time.
+    Telegram still delivers these (seen 19 Nov: posts arrived ~5 min late), so retrying
+    would post the same headline twice."""
+    return isinstance(err, TimeoutError) or "timed out" in str(err).lower()
+
+
 def post_telegram_channel(p: dict) -> str:
     api = f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}"
     chat = env("TELEGRAM_CHANNEL_ID")
+
+    def guarded(send) -> str:
+        try:
+            return send()
+        except Exception as e:  # noqa: BLE001
+            if sent_but_unconfirmed(e):
+                print("    ~ Telegram: no reply in time - it usually still delivers, so NOT retrying (no duplicate)")
+                return "unconfirmed"
+            raise
 
     def card() -> str:
         r = http_post_file(f"{api}/sendPhoto", {"chat_id": chat, "caption": p["tagged"][:1024]},
@@ -637,7 +653,7 @@ def post_telegram_channel(p: dict) -> str:
         r = http_post(f"{api}/sendMessage", {"chat_id": chat, "text": p["tagged"], "disable_web_page_preview": "true"})
         return str(r.get("result", {}).get("message_id", ""))
 
-    return with_card("Telegram", p, card, text)
+    return with_card("Telegram", p, lambda: guarded(card), lambda: guarded(text))
 
 
 # --- Mastodon (media upload + status, or text) --------------------------------
