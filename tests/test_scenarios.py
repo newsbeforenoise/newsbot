@@ -835,6 +835,38 @@ def s36_threads_paced_telegram_gets_everything():
     return "Threads: max 2/hour here (6 live), markets/breaking only; Telegram still got all 4"
 
 
+
+def s37_youtube_short_and_private_copy():
+    net = setup()
+    bot.config.REEL_ENABLED = True
+    os.environ.update({"YT_CLIENT_ID": "cid", "YT_CLIENT_SECRET": "sec", "YT_REFRESH_TOKEN": "rt"})
+    uploads = []
+    real = (bot.youtube_access_token, bot.youtube_upload)
+    bot.youtube_access_token = lambda: "AT"
+    bot.youtube_upload = lambda video, meta, token: uploads.append((video, meta, token)) or "YTID"
+    try:
+        run_at(net, at_et(2026, 11, 18, 17, 0))
+        _three_stories(net, at_et(2026, 11, 18, 17, 10))
+        run_at(net, at_et(2026, 11, 18, 18, 5))
+        run_at(net, at_et(2026, 11, 18, 18, 35))
+        assert len(uploads) == 1, uploads
+        video, meta, token = uploads[0]
+        assert video[4:8] == b"ftyp" and token == "AT"
+        t = meta["snippet"]["title"]
+        assert t.endswith("#Shorts") and len(t) <= 100 and "18 Nov 2026" in t, t
+        assert meta["snippet"]["categoryId"] == "25" and meta["status"]["selfDeclaredMadeForKids"] is False
+        priv = [c for c in net.calls if c[0] == "X-alert" and c[1] == "upload-video"]
+        assert len(priv) == 1 and priv[0][2]["text"].startswith("🎬 Today's reel"), priv
+        run_at(net, at_et(2026, 11, 18, 18, 40))
+        assert len(uploads) == 1, "uploaded twice"
+    finally:
+        bot.config.REEL_ENABLED = False
+        bot.youtube_access_token, bot.youtube_upload = real
+        for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"):
+            os.environ.pop(k, None)
+    return "YouTube Short uploaded once (title, #Shorts, News category) + copy in your private chat"
+
+
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]
 
 if __name__ == "__main__":

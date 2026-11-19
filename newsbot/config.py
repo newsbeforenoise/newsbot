@@ -498,7 +498,11 @@ DAILY_REPORT_AT = "21:00"
 # ===========================================================================
 # --- 🎬 Daily reel: top stories of the day as a short video with music -------------
 REEL_ENABLED = True
-REEL_PLATFORMS = ["Instagram", "Facebook", "Telegram"]   # Instagram Reels, Facebook Reels, Telegram channel video
+REEL_PLATFORMS = ["Instagram", "Facebook", "Telegram", "YouTube", "Private"]
+# Instagram Reels, Facebook Reels, Telegram channel video, YouTube Shorts,
+# "Private" = a copy in your private Telegram chat (remove it once YouTube uploads are public)
+YOUTUBE_PRIVACY = "public"        # until Google approves the API audit, YouTube forces uploads to private
+YOUTUBE_CATEGORY_ID = "25"        # News & Politics
 REEL_AT = "18:30"                 # local time (DIGEST_TIMEZONE), after the US close
 REEL_STORIES = 5
 REEL_INTRO_SECONDS = 2.8

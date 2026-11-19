@@ -216,7 +216,8 @@ def build_reel(top: list[dict], day: datetime) -> dict:
     caption = (f"📰 Today's top {n} stories ({day:%d %b})\n\n" + "\n".join(lines)
                + "\n\nFollow " + config.BRAND_HANDLE + " for markets news before the noise.\n"
                + " ".join(config.REEL_HASHTAGS) + "\nAutomated headline alerts. Not financial advice.")
-    return {"video": video, "caption": caption[:2150], "count": n}
+    return {"video": video, "caption": caption[:2150], "count": n,
+            "title": f"Today's Top {n} Market & World Stories – {day:%d %b %Y}"}
 
 
 # ----------------------------------------------------------------------------

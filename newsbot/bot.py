@@ -1165,7 +1165,58 @@ def post_telegram_reel(rl: dict) -> str:
     return str(r.get("result", {}).get("message_id", ""))
 
 
-REEL_POSTERS = {"Instagram": (post_instagram_reel, ["IG_USER_ID", "FB_PAGE_TOKEN"]),
+def youtube_access_token() -> str:
+    return http_post("https://oauth2.googleapis.com/token", {
+        "client_id": env("YT_CLIENT_ID"), "client_secret": env("YT_CLIENT_SECRET"),
+        "refresh_token": env("YT_REFRESH_TOKEN"), "grant_type": "refresh_token"})["access_token"]
+
+
+def youtube_upload(video: bytes, meta: dict, token: str) -> str:
+    """Resumable upload: start a session (metadata), then send the bytes. Returns the video id."""
+    req = urllib.request.Request(
+        "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        data=json.dumps(meta).encode(), method="POST", headers={
+            "Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": "video/mp4", "X-Upload-Content-Length": str(len(video))})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            location = r.headers.get("Location")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', 'ignore')[:300]}") from None
+    if not location:
+        raise RuntimeError("YouTube did not return an upload URL")
+    put = urllib.request.Request(location, data=video, method="PUT", headers={
+        "Authorization": f"Bearer {token}", "Content-Type": "video/mp4"})
+    try:
+        with urllib.request.urlopen(put, timeout=300) as r:
+            return json.loads(r.read() or b"{}").get("id", "")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', 'ignore')[:300]}") from None
+
+
+def post_youtube_short(rl: dict) -> str:
+    title = rl.get("title") or "Today's Top Market Stories"
+    meta = {"snippet": {"title": f"{title} #Shorts"[:100], "description": rl["caption"][:4900],
+                        "tags": [t.lstrip("#") for t in config.REEL_HASHTAGS] + ["Shorts", "News Before Noise"],
+                        "categoryId": config.YOUTUBE_CATEGORY_ID, "defaultLanguage": "en"},
+            "status": {"privacyStatus": config.YOUTUBE_PRIVACY, "selfDeclaredMadeForKids": False,
+                       "containsSyntheticMedia": False}}
+    return youtube_upload(rl["video"], meta, youtube_access_token())
+
+
+def post_private_reel(rl: dict) -> str:
+    """Copy of the reel in your private Telegram chat (handy while YouTube uploads are still private)."""
+    api = f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}"
+    r = http_post_file(f"{api}/sendVideo", {"chat_id": env("TELEGRAM_CHAT_ID"),
+                                            "caption": ("🎬 Today's reel (for manual upload if needed)\n\n"
+                                                        + rl["caption"])[:1024], "supports_streaming": "true"},
+                       "video", "reel.mp4", rl["video"], content_type="video/mp4")
+    return str(r.get("result", {}).get("message_id", ""))
+
+
+REEL_POSTERS = {"YouTube": (post_youtube_short, ["YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"]),
+                "Private": (post_private_reel, ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]),
+                "Instagram": (post_instagram_reel, ["IG_USER_ID", "FB_PAGE_TOKEN"]),
                 "Facebook": (post_facebook_reel, ["FB_PAGE_ID", "FB_PAGE_TOKEN"]),
                 "Telegram": (post_telegram_reel, ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHANNEL_ID"])}
 
