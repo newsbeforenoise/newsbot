@@ -579,7 +579,11 @@ def test_image_platform_caps_and_priority():
 def _per_story_caps(st3, st2):
     assert bot.platform_wants("Instagram", st3, [], NOW)
     assert not bot.platform_wants("Instagram", st2, [], NOW)          # geopolitics not on IG by default
-    assert bot.platform_wants("Threads", st2, [], NOW)
+    assert bot.platform_wants("Telegram", st2, [], NOW)
+    assert not bot.platform_wants("Threads", st2, [], NOW)             # Threads: markets/breaking only (pacing)
+    assert bot.platform_wants("Threads", {**st2, "breaking": True}, [], NOW)
+    busy = [{"ts": NOW - 60, "platforms": ["Threads"]}] * bot.config.THREADS_MAX_PER_HOUR
+    assert not bot.platform_wants("Threads", st3, busy, NOW)
     full = [{"ts": NOW - 60, "platforms": ["Instagram"]}] * bot.config.IMAGE_DAILY_LIMITS["Instagram"]
     assert not bot.platform_wants("Instagram", st3, full, NOW)
     assert bot.platform_wants("Facebook", st3, full, NOW)

@@ -155,6 +155,7 @@ def setup():
     bot.RECAP_FILE = d / "recap.json"
     bot.config.REEL_ENABLED = bot.config.WEEKLY_ENABLED = bot.config.WELCOME_ENABLED = False
     bot.config.REPORT_FOLLOWERS = False
+    bot.config.THREADS_MAX_PER_HOUR, bot.config.THREADS_MIN_PRIORITY = 1000, 1
     bot.fetch, prices.fetch_quote = net.fetch, net.quote
     bot.http_post, bot.http_post_file = net.http_post, net.http_post_file
     bot.http_get_json, bot.http_post_bytes = net.http_get_json, net.http_post_bytes
@@ -817,6 +818,21 @@ def s35_followers_in_daily_report():
     finally:
         bot.config.DAILY_REPORT = bot.config.REPORT_FOLLOWERS = False
     return "daily report shows followers per platform (Threads 'n/a' until insights permission is added)"
+
+
+
+def s36_threads_paced_telegram_gets_everything():
+    net = setup()
+    bot.config.THREADS_MAX_PER_HOUR, bot.config.THREADS_MIN_PRIORITY = 2, 3
+    run(net)
+    put(net, NIKKEI); put(net, VOLGOGRAD)
+    net.fed += ["Federal Reserve issues FOMC statement", "Federal Reserve Board announces discount rate decision"]
+    run(net)
+    th = [c[2]["text"] for c in net.posts("Threads")]
+    tg = [c[2]["text"] for c in net.posts("Telegram")]
+    assert len(tg) == 4, tg
+    assert len(th) == 2 and not any("Volgograd" in t for t in th), th
+    return "Threads: max 2/hour here (6 live), markets/breaking only; Telegram still got all 4"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]

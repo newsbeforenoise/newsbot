@@ -766,6 +766,11 @@ def platform_wants(name: str, story: dict, posted: list, now: float) -> bool:
     Digest platforms get nothing per story: they post once an hour (see run_digest)."""
     if name in config.DIGEST_PLATFORMS:
         return False
+    if name == "Threads":                      # new accounts get "action is blocked" if they post too fast
+        if story["priority"] < config.THREADS_MIN_PRIORITY and not story.get("breaking"):
+            return False
+        last_hour = sum(1 for q in posted if q["ts"] > now - 3600 and "Threads" in q.get("platforms", []))
+        return last_hour < config.THREADS_MAX_PER_HOUR
     if name not in IMAGE_PLATFORMS:
         return True
     if story["priority"] < config.IMAGE_MIN_PRIORITY:
@@ -1481,6 +1486,7 @@ def main() -> int:
         run_recaps(now, dry, posted, platforms)
     except Exception as e:  # noqa: BLE001  recaps must never break live posting
         print(f"  ! recap error: {e}")
+    save(POSTED_FILE, posted)          # again: recaps/welcome add entries
     try:
         STATS["feeds"] = [feeds_ok, len(config.FEEDS)]
         send_daily_report(now, dry, posted)

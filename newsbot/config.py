@@ -529,3 +529,10 @@ WELCOME_TEXT = (
 
 # --- 👥 Follower counts in the daily report ----------------------------------------
 REPORT_FOLLOWERS = True
+
+# --- Threads pace (update 8c) ------------------------------------------------------
+# Threads blocks new accounts that post too often ("action is blocked", subcode 2207051).
+# Threads gets only the most important stories, at most this many per hour; Telegram
+# still gets everything. Raise these slowly as the account ages.
+THREADS_MAX_PER_HOUR = 6
+THREADS_MIN_PRIORITY = 3          # 3 = markets/official/price alerts (+ anything BREAKING); 2 = also geopolitics
