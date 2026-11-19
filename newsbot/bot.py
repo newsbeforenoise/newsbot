@@ -870,7 +870,7 @@ def build_digest(items: list[dict]) -> dict:
         lines.append(f"+{more} more headlines today on our other channels")
     mins = int(getattr(config, "DIGEST_WINDOW_MINUTES", 60))
     span = "this hour" if mins == 60 else f"last {mins} min"
-    head = (f"🕐 Global markets, {span} ({window})" if len(items) > 1 else picked[0]["plain"])
+    head = (f"🕐 Global markets {span} ({window})" if len(items) > 1 else picked[0]["plain"])
     caption = head + "\n\n" + ("\n".join(lines) + "\n\n" if len(items) > 1 else "") + " ".join(tags)
     caption += ("\n\nSwipe for every headline ➡️" if len(slides) > 1 else "")
     caption += "\nAutomated headline alerts. Not financial advice."
@@ -1099,6 +1099,9 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
                 k, words = headline_key(q["headline"]), set(q.get("words", []))
                 if not k or k in used or k in seen:
                     continue                                    # exact repeat
+                st_info = q.get("story") or {}
+                if st_info.get("followup") or st_info.get("is_price"):
+                    words = set()                               # real updates & new price levels are new news
                 if words and any(similar(words, w) for w in recent_words):
                     continue                                    # same story, reworded
                 seen.add(k)
