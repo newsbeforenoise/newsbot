@@ -587,6 +587,14 @@ def _per_story_caps(st3, st2):
     assert bot.platform_wants("Threads", {**st2, "breaking": True}, [], NOW)
     busy = [{"ts": NOW - 60, "platforms": ["Threads"]}] * bot.config.THREADS_MAX_PER_HOUR
     assert not bot.platform_wants("Threads", st3, busy, NOW)
+    recent = [{"ts": NOW - 5 * 60, "platforms": ["Threads"]}]       # minimum gap between Threads posts
+    assert not bot.platform_wants("Threads", st3, recent, NOW)
+    assert bot.platform_wants("Threads", st3, [{"ts": NOW - 20 * 60, "platforms": ["Threads"]}], NOW)
+    saved = list(bot.STATS.get("fails", []))
+    bot.STATS["fails"] = [{"ts": NOW - 3600, "platform": "Threads", "error": "HTTP 400 ... 2207051 ..."}]
+    assert not bot.platform_wants("Threads", st3, [], NOW)            # cooldown after a block
+    assert bot.platform_wants("Threads", st3, [], NOW + 6 * 3600)     # ...ends after 6 hours
+    bot.STATS["fails"] = saved
     full = [{"ts": NOW - 60, "platforms": ["Instagram"]}] * bot.config.IMAGE_DAILY_LIMITS["Instagram"]
     assert not bot.platform_wants("Instagram", st3, full, NOW)
     assert bot.platform_wants("Facebook", st3, full, NOW)

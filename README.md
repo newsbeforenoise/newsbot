@@ -236,3 +236,9 @@ a copy plus an X link. Written by a free AI model (GitHub Models, via the workfl
 key needed) from only that day's confirmed headlines, article summaries and closing prices. Any paragraph
 with a number not in that material is replaced by the plain headline; if the AI is unavailable, a plain
 numbered list is posted. Turn off with `DAILY_RECAP_ENABLED = False` (or `DAILY_RECAP_AI = False` for list only).
+
+## Update 11 – Threads pacing fix
+Threads blocked the account again ("We restrict certain activity", subcode 2207051) after bursts
+of up to 4 posts in the same minute. Threads now gets: at most 3 posts an hour, at least 15 minutes
+apart, 25 a day, and after any block the bot stays off Threads for 6 hours (retrying keeps the
+block alive). Telegram and the other platforms are unaffected. Settings: `THREADS_*` in config.py.

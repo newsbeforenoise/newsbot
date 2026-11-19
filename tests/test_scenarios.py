@@ -156,6 +156,8 @@ def setup():
     bot.config.REEL_ENABLED = bot.config.WEEKLY_ENABLED = bot.config.WELCOME_ENABLED = False
     bot.config.REPORT_FOLLOWERS = False
     bot.config.THREADS_MAX_PER_HOUR, bot.config.THREADS_MIN_PRIORITY = 1000, 1
+    bot.config.THREADS_MIN_GAP_MINUTES, bot.config.THREADS_DAILY_MAX = 0, 1000
+    bot.STATS.clear()
     bot.config.DAILY_RECAP_ENABLED = False
     os.environ.pop("GH_MODELS_TOKEN", None)
     bot.fetch, prices.fetch_quote = net.fetch, net.quote
@@ -834,7 +836,7 @@ def s36_threads_paced_telegram_gets_everything():
     tg = [c[2]["text"] for c in net.posts("Telegram")]
     assert len(tg) == 4, tg
     assert len(th) == 2 and not any("Volgograd" in t for t in th), th
-    return "Threads: max 2/hour here (6 live), markets/breaking only; Telegram still got all 4"
+    return "Threads: max 2/hour here (3 live), markets/breaking only; Telegram still got all 4"
 
 
 
@@ -960,6 +962,31 @@ def s40_india_recap_only_india_stories():
     finally:
         bot.config.DAILY_RECAP_ENABLED = False
     return "4:30 PM IST: India edition with only India stories (Japan story left for the global edition)"
+
+
+def s41_threads_block_triggers_cooldown():
+    net = setup()
+    real = bot.post_threads
+    calls = []
+    def blocked(p):
+        calls.append(p)
+        raise RuntimeError('HTTP 400: {"error":{"code":1,"error_subcode":2207051,"error_user_msg":"We restrict certain activity"}}')
+    bot.post_threads = blocked
+    bot.PLATFORMS["Threads"] = (blocked, bot.PLATFORMS["Threads"][1])
+    try:
+        run(net)
+        put(net, NIKKEI)
+        run(net)
+        assert len(calls) == 1, calls                      # first try is blocked...
+        net.fed += ["Federal Reserve issues FOMC statement", "Federal Reserve Board announces discount rate decision"]
+        run(net)
+        assert len(calls) == 1, "kept hammering Threads during cooldown"
+        tg = [c[2]["text"] for c in net.posts("Telegram")]
+        assert len(tg) == 2, tg                             # ...but Telegram keeps going
+    finally:
+        bot.post_threads = real
+        bot.PLATFORMS["Threads"] = (real, bot.PLATFORMS["Threads"][1])
+    return "Threads 'restricted activity' block -> 6h quiet period, Telegram unaffected"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]

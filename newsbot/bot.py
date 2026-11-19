@@ -785,14 +785,33 @@ def platform_wants(name: str, story: dict, posted: list, now: float) -> bool:
     if name == "Threads":                      # new accounts get "action is blocked" if they post too fast
         if story["priority"] < config.THREADS_MIN_PRIORITY and not story.get("breaking"):
             return False
-        last_hour = sum(1 for q in posted if q["ts"] > now - 3600 and "Threads" in q.get("platforms", []))
-        return last_hour < config.THREADS_MAX_PER_HOUR
+        return threads_ok(posted, now)
     if name not in IMAGE_PLATFORMS:
         return True
     if story["priority"] < config.IMAGE_MIN_PRIORITY:
         return False
     used = sum(1 for q in posted if q["ts"] > now - 86400 and name in q.get("platforms", []))
     return used < config.IMAGE_DAILY_LIMITS.get(name, 25)
+
+
+def threads_blocked_until(now: float) -> float:
+    """When Threads says "we restrict certain activity" (subcode 2207051), every retry keeps the
+    block alive. Stay completely quiet on Threads for THREADS_COOLDOWN_HOURS after the last one."""
+    last = max((f["ts"] for f in STATS.get("fails", [])
+                if f.get("platform", "").startswith("Threads") and "2207051" in f.get("error", "")), default=0)
+    return last + config.THREADS_COOLDOWN_HOURS * 3600 if last else 0
+
+
+def threads_ok(posted: list, now: float) -> bool:
+    """Threads pacing: cooldown after a block, a minimum gap, an hourly and a daily cap."""
+    if now < threads_blocked_until(now):
+        return False
+    times = [q["ts"] for q in posted if "Threads" in q.get("platforms", [])]
+    if any(t > now - config.THREADS_MIN_GAP_MINUTES * 60 for t in times):
+        return False
+    if sum(1 for t in times if t > now - 3600) >= config.THREADS_MAX_PER_HOUR:
+        return False
+    return sum(1 for t in times if t > now - 86400) < config.THREADS_DAILY_MAX
 
 
 # --- Hourly digest: one carousel per hour on Facebook / Instagram ------------
@@ -1069,6 +1088,8 @@ def publish_special(p: dict, kind: str, now: float, dry: bool, posted: list, pla
         print("    (DRY_RUN - not posted)")
     else:
         targets = [n for n in platforms if n not in IMAGE_PLATFORMS and n not in config.DIGEST_PLATFORMS]
+        if "Threads" in targets and not threads_ok(posted, now):
+            targets.remove("Threads")
         for name in targets:
             try:
                 pid = PLATFORMS[name][0](p)
@@ -1371,7 +1392,7 @@ def publish_daily_recap(r: dict, edition: str, now: float, dry: bool, posted: li
             except Exception as e:  # noqa: BLE001
                 print(f"    ! Facebook recap failed: {e}")
                 record_fail("Facebook recap", e, now)
-        if "Threads" in targets:
+        if "Threads" in targets and threads_ok(posted, now):
             try:
                 post_threads(special_post(r["short"], daily_recap.EDITIONS[edition]["tags"], "recap"))
                 done.append("Threads")
