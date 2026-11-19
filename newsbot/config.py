@@ -402,6 +402,8 @@ IMAGE_DAILY_LIMITS = {"Facebook": 40, "Instagram": 25}   # only used if a platfo
 # Set DIGEST_PLATFORMS = [] to go back to one Facebook/Instagram post per headline.
 DIGEST_PLATFORMS = ["Facebook", "Instagram", "Threads"]   # update 13: Threads joins the roundup
 DIGEST_WINDOW_MINUTES = 30       # one roundup post every 30 minutes (Telegram stays instant)
+DIGEST_PLATFORM_WINDOWS = {"Instagram": 60}   # update 13.2: Instagram posts hourly (stays well under its
+                                              # ~50 posts/day cap and request budget); others every 30 min
 DIGEST_MIN_PRIORITY = 2          # 2 = markets + geopolitics; 3 = markets & price alerts only
 DIGEST_MAX_SLIDES = 15           # per 30-minute roundup = up to 30 headlines an hour (Facebook shows them all)
 DIGEST_SLIDE_LIMITS = {"Instagram": 10, "Threads": 20}   # API maximums per post; the rest go in the caption

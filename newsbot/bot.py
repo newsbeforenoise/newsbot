@@ -849,12 +849,24 @@ def queue_for_digest(p: dict, story: dict, now: float) -> dict:
             "story": {k: story.get(k) for k in ("priority", "countries", "followup", "is_price")}}
 
 
-def build_digest(items: list[dict]) -> dict:
-    """Slides (JPEG bytes) + caption for one hourly carousel."""
+def platform_window(name: str) -> int:
+    return int(getattr(config, "DIGEST_PLATFORM_WINDOWS", {}).get(name, getattr(config, "DIGEST_WINDOW_MINUTES", 60)))
+
+
+def build_digest(items: list[dict], minutes: int | None = None, end_ts: float | None = None) -> dict:
+    """Slides (JPEG bytes) + caption for one roundup carousel. `minutes` = this platform's
+    roundup length (e.g. Instagram's 60 while the base window is 30)."""
     picked = sorted(items, key=lambda q: (q["priority"], q.get("focus", False), q["ts"]), reverse=True)
     cover = config.DIGEST_COVER and len(items) > 1
     picked = picked[: config.DIGEST_MAX_SLIDES - (1 if cover else 0)]
-    window = hour_window(min(q["ts"] for q in items), max(q["ts"] for q in items))
+    base = int(getattr(config, "DIGEST_WINDOW_MINUTES", 60))
+    if minutes and minutes != base:
+        end = (_window_start(end_ts) if end_ts else
+               _window_start(max(q["ts"] for q in items)) + timedelta(minutes=base))
+        start = end - timedelta(minutes=minutes)
+        window = f"{start:%H:%M}–{end:%H:%M} {start.tzname() or config.DIGEST_TIMEZONE}"
+    else:
+        window = hour_window(min(q["ts"] for q in items), max(q["ts"] for q in items))
     when = datetime.fromtimestamp(max(q["ts"] for q in items), _tz())
     slides = []
     if cover:
@@ -868,7 +880,7 @@ def build_digest(items: list[dict]) -> dict:
     more = len(items) - len(picked)
     if more > 0:
         lines.append(f"+{more} more headlines today on our other channels")
-    mins = int(getattr(config, "DIGEST_WINDOW_MINUTES", 60))
+    mins = int(minutes or getattr(config, "DIGEST_WINDOW_MINUTES", 60))
     span = "this hour" if mins == 60 else f"last {mins} min"
     head = (f"🕐 Global markets {span} ({window})" if len(items) > 1 else picked[0]["plain"])
     caption = head + "\n\n" + ("\n".join(lines) + "\n\n" if len(items) > 1 else "") + " ".join(tags)
@@ -1111,24 +1123,57 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
             if ready and not fresh:
                 print("\n=== Hourly digest: no new headlines since the last carousel - nothing posted ===")
             ready = fresh
-        if ready:
-            st["batch"] = {"items": ready, "done": [], "skipped": [], "attempts": 0}
+        # Platforms with a longer roundup (Instagram: 60 min) collect the 30-min batches and post
+        # only when their own window closes.
+        hold = st.setdefault("hold", {})
+        w0 = _window_start(now)
+        minute_of_day = w0.hour * 60 + w0.minute
+        per: dict[str, list] = {}
+        for name in platforms:
+            win = platform_window(name)
+            hold[name] = [q for q in hold.get(name, []) if q["ts"] > now - (win + 60) * 60]
+            if win > int(getattr(config, "DIGEST_WINDOW_MINUTES", 60)) and minute_of_day % win:
+                hold[name] += ready                     # not this platform's turn yet
+                continue
+            items_p = hold.pop(name, []) + ready
+            if items_p:
+                per[name] = items_p
+        if per:
+            st["batch"] = {"items": ready, "per": per, "done": [], "skipped": [], "attempts": 0,
+                           "end_ts": w0.timestamp()}
     batch = st.get("batch")
     if batch:
-        dg = build_digest(batch["items"])
-        print(f"\n=== Hourly digest {dg['window']}: {dg['count']} headlines, {len(dg['slides'])} slides ===")
+        per = batch.get("per") or {n: batch["items"] for n in platforms}
+        dgs: dict[str, dict] = {}
+
+        def dg_for(name: str) -> dict:
+            key = "|".join(headline_key(q["headline"]) for q in per[name])
+            if key not in dgs:
+                win = platform_window(name)
+                dgs[key] = build_digest(per[name], win, batch.get("end_ts"))
+                saved = batch.setdefault("urls_by", {}).get(key[:300])
+                if saved:                               # reuse slides uploaded by an earlier attempt
+                    dgs[key]["urls"], dgs[key]["photo_ids"] = saved["urls"], saved.get("photo_ids", [])
+                print(f"\n=== Roundup {dgs[key]['window']}: {dgs[key]['count']} headlines, "
+                      f"{len(dgs[key]['slides'])} slides ===")
+            return dgs[key]
+
         if dry:
             PREVIEW_DIR.mkdir(exist_ok=True)
-            for i, data in enumerate(dg["slides"], 1):
-                (PREVIEW_DIR / f"digest_{i:02d}.jpg").write_bytes(data)
+            for name in per:
+                dg_for(name)
+            for n, d in enumerate(dgs.values()):        # one set of previews per distinct roundup
+                for i, data in enumerate(d["slides"], 1):
+                    (PREVIEW_DIR / (f"digest_{i:02d}.jpg" if n == 0 else f"digest_{n}_{i:02d}.jpg")).write_bytes(data)
             print("    (DRY_RUN - digest not posted; slides saved as previews)")
             st["batch"] = None
         else:
             batch["attempts"] += 1
             batch.setdefault("skipped", [])
-            if batch.get("urls"):                      # reuse slides uploaded by an earlier attempt
-                dg["urls"], dg["photo_ids"] = batch["urls"], batch.get("photo_ids", [])
+            for name in [n for n in platforms if n not in per and n not in batch["skipped"]]:
+                batch["skipped"].append(name)           # nothing for this platform in this batch (held)
             for name in [n for n in platforms if n not in batch["done"] + batch["skipped"]]:
+                dg = dg_for(name)
                 if now < digest_cooldown_until(name) or (name == "Threads" and now < threads_blocked_until(now)):
                     print(f"    - {name}: rate-limited recently, skipping this carousel")
                     batch["skipped"].append(name)
@@ -1146,8 +1191,9 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
                     record_fail(name, e, now)
                     if is_rate_limit(e):
                         batch["skipped"].append(name)   # never retry a rate limit (it may even be live)
-            if dg.get("urls"):
-                batch["urls"], batch["photo_ids"] = dg["urls"], dg.get("photo_ids", [])
+            for key, d in dgs.items():
+                if d.get("urls"):
+                    batch.setdefault("urls_by", {})[key[:300]] = {"urls": d["urls"], "photo_ids": d.get("photo_ids", [])}
             finished = set(platforms) <= set(batch["done"] + batch["skipped"])
             if finished or batch["attempts"] >= config.DIGEST_MAX_ATTEMPTS:
                 STATS.setdefault("digests", []).append({"ts": now, "done": list(batch["done"])})
