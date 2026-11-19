@@ -148,6 +148,8 @@ def setup():
     bot.config.PRICE_SYMBOLS = [
         {"symbol": "JPY=X", "name": "USD/JPY", "flag": "🇯🇵", "tag": "#USDJPY", "step": 1, "pct": [1, 1.5, 2], "dp": 2}]
     bot.config.MAX_POSTS_PER_RUN = 10
+    bot.config.DIGEST_PLATFORMS = ["Facebook", "Instagram"]   # scenarios use Threads to check per-headline posting;
+    bot.config.DIGEST_WINDOW_MINUTES = 60                        # the 30-min Threads roundup is in tests/check_update13.py
     bot.config.TRUSTED_OWNERS = []          # scenarios use cnbc/bbc/nikkei as stand-ins; s22 tests trusted
     bot.config.POST_SPACING_SECONDS = 0
     bot.EXTRAS_FILE, bot.STATS_FILE = d / "extras.json", d / "stats.json"
@@ -419,13 +421,17 @@ def s14_feed_outage_health_alert():
 def s15_daily_post_limit():
     net = setup()
     run(net)
-    lim = bot.config.MAX_POSTS_PER_DAY
-    fake = [{"ts": time.time() - 60, "text": "x", "words": [], "item_ids": [], "story_id": f"s{i}", "platforms": []}
-            for i in range(lim)]
-    bot.POSTED_FILE.write_text(json.dumps(fake))
-    put(net, NIKKEI); run(net)
-    assert net.posts("Threads") == []
-    return f"daily limit ({lim}) reached: nothing more posted"
+    old_lim, lim = bot.config.MAX_POSTS_PER_DAY, 50      # live setting is 0 = unlimited; test the cap logic
+    bot.config.MAX_POSTS_PER_DAY = lim
+    try:
+        fake = [{"ts": time.time() - 60, "text": "x", "words": [], "item_ids": [], "story_id": f"s{i}",
+                 "platforms": []} for i in range(lim)]
+        bot.POSTED_FILE.write_text(json.dumps(fake))
+        put(net, NIKKEI); run(net)
+        assert net.posts("Threads") == []
+    finally:
+        bot.config.MAX_POSTS_PER_DAY = old_lim
+    return f"optional daily limit ({lim}) reached: nothing more posted (default is unlimited)"
 
 
 def s20_price_alerts_never_crowd_out_news():

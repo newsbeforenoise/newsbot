@@ -823,20 +823,28 @@ def _tz():
         return timezone.utc
 
 
+def _window_start(ts: float) -> datetime:
+    m = max(1, int(getattr(config, "DIGEST_WINDOW_MINUTES", 60)))
+    dt = datetime.fromtimestamp(ts, _tz()).replace(second=0, microsecond=0)
+    mins = (dt.hour * 60 + dt.minute) // m * m
+    return dt.replace(hour=mins // 60, minute=mins % 60)
+
+
 def hour_key(ts: float) -> str:
-    return datetime.fromtimestamp(ts, _tz()).strftime("%Y-%m-%d %H")
+    """Key of the roundup window a time falls in (every DIGEST_WINDOW_MINUTES, default 30)."""
+    return _window_start(ts).strftime("%Y-%m-%d %H:%M")
 
 
 def hour_window(first_ts: float, last_ts: float) -> str:
-    """'14:00–15:00 UTC' (or '13:00–16:00 UTC' if several hours were batched)."""
-    tz = _tz()
-    a = datetime.fromtimestamp(first_ts, tz).replace(minute=0, second=0, microsecond=0)
-    b = datetime.fromtimestamp(last_ts, tz).replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    """'14:00–14:30 EST' (or '13:30–14:30 EST' if several windows were batched)."""
+    a = _window_start(first_ts)
+    b = _window_start(last_ts) + timedelta(minutes=max(1, int(getattr(config, "DIGEST_WINDOW_MINUTES", 60))))
     return f"{a:%H:%M}–{b:%H:%M} {a.tzname() or config.DIGEST_TIMEZONE}"
 
 
 def queue_for_digest(p: dict, story: dict, now: float) -> dict:
     return {"ts": now, "headline": p["headline"], "credit": p["credit_main"], "plain": p["plain"],
+            "words": list(story.get("words", [])),
             "tags": story.get("tags", []), "priority": story["priority"], "focus": story.get("focus", False),
             "story": {k: story.get(k) for k in ("priority", "countries", "followup", "is_price")}}
 
@@ -860,11 +868,31 @@ def build_digest(items: list[dict]) -> dict:
     more = len(items) - len(picked)
     if more > 0:
         lines.append(f"+{more} more headlines today on our other channels")
-    head = (f"🕐 Global markets this hour ({window})" if len(items) > 1 else picked[0]["plain"])
+    mins = int(getattr(config, "DIGEST_WINDOW_MINUTES", 60))
+    span = "this hour" if mins == 60 else f"last {mins} min"
+    head = (f"🕐 Global markets, {span} ({window})" if len(items) > 1 else picked[0]["plain"])
     caption = head + "\n\n" + ("\n".join(lines) + "\n\n" if len(items) > 1 else "") + " ".join(tags)
     caption += ("\n\nSwipe for every headline ➡️" if len(slides) > 1 else "")
     caption += "\nAutomated headline alerts. Not financial advice."
-    return {"slides": slides, "caption": caption[:2150], "window": window, "count": len(items)}
+    return {"slides": slides, "caption": caption[:2150], "window": window, "count": len(items),
+            "picked": picked, "head": head, "tags": tags}
+
+
+def threads_caption(dg: dict) -> str:
+    """Threads allows 500 characters: the header plus as many headlines as fit."""
+    picked = dg.get("picked", [])
+    if len(picked) == 1:
+        return picked[0]["plain"][:490]
+    lines, out = [dg["head"], ""], 0
+    for q in picked:
+        line = "• " + q["plain"].rsplit(" – ", 1)[0]
+        if len("\n".join(lines + [line])) > 440:
+            break
+        lines.append(line)
+        out += 1
+    more = dg["count"] - out
+    lines += ["", (f"+{more} more ➡️ swipe" if more > 0 else "Swipe ➡️") + " · Not financial advice"]
+    return "\n".join(lines)[:500]
 
 
 def fb_photo(data: bytes, published: bool, message: str = "") -> tuple[str, str, str]:
@@ -905,13 +933,16 @@ def post_facebook_digest(dg: dict) -> str:
 
 
 def _ig_wait(container: str, token: str) -> None:
-    for _ in range(20):
+    """Waits until Instagram has processed a container. Images are usually ready in a few
+    seconds, so wait first and check rarely: every check counts against the API call limit."""
+    for _ in range(8):
+        time.sleep(4)
         st = http_get_json(graph(container), {"fields": "status_code", "access_token": token}).get("status_code")
         if st in ("FINISHED", None):
             return
         if st == "ERROR":
             raise RuntimeError("Instagram could not process the media")
-        time.sleep(3)
+    raise RuntimeError("Instagram media still processing after 32 s")
 
 
 def post_instagram_digest(dg: dict) -> str:
@@ -920,28 +951,128 @@ def post_instagram_digest(dg: dict) -> str:
     urls = [u for u in _host_slides(dg) if u]
     if len(urls) != len(dg["slides"]):
         raise RuntimeError("could not get public image URLs from Facebook")
+    urls = urls[: config.DIGEST_SLIDE_LIMITS.get("Instagram", 10)]
     if len(urls) == 1:
         container = http_post(graph(f"{ig}/media"), {"image_url": urls[0], "caption": dg["caption"],
                                                      "access_token": token})["id"]
     else:
-        children = []
-        for u in urls:
-            c = http_post(graph(f"{ig}/media"), {"image_url": u, "is_carousel_item": "true",
-                                                 "access_token": token})["id"]
+        children = [http_post(graph(f"{ig}/media"), {"image_url": u, "is_carousel_item": "true",
+                                                     "access_token": token})["id"] for u in urls]
+        for c in children:          # created together, so they process in parallel
             _ig_wait(c, token)
-            children.append(c)
         container = http_post(graph(f"{ig}/media"), {"media_type": "CAROUSEL", "children": ",".join(children),
                                                      "caption": dg["caption"], "access_token": token})["id"]
     _ig_wait(container, token)
     return http_post(graph(f"{ig}/media_publish"), {"creation_id": container, "access_token": token}).get("id", "")
 
 
-DIGEST_POSTERS = {"Facebook": post_facebook_digest, "Instagram": post_instagram_digest}
+def _threads_wait(cid: str, token: str) -> None:
+    for _ in range(8):
+        time.sleep(4)
+        st = http_get_json(f"https://graph.threads.net/v1.0/{cid}", {"fields": "status", "access_token": token})
+        if st.get("status") in ("FINISHED", None):
+            return
+        if st.get("status") == "ERROR":
+            raise RuntimeError("Threads could not process the media")
+    raise RuntimeError("Threads media still processing after 32 s")
+
+
+def post_threads_digest(dg: dict) -> str:
+    """One Threads post per roundup: a swipeable carousel of the cards (up to 20) with the
+    headlines in the text. Falls back to a text-only post if the images can't be hosted."""
+    token = env("THREADS_ACCESS_TOKEN")
+    base = f"https://graph.threads.net/v1.0/{env('THREADS_USER_ID') or 'me'}"
+    text = threads_caption(dg)
+    params = {"text": text, "access_token": token}
+    topic = threads_topic(dg.get("tags", []))
+    if topic:
+        params["topic_tag"] = topic
+    urls: list[str] = []
+    if env("FB_PAGE_ID") and env("FB_PAGE_TOKEN"):
+        try:
+            urls = [u for u in _host_slides(dg) if u][: config.DIGEST_SLIDE_LIMITS.get("Threads", 20)]
+        except Exception as e:  # noqa: BLE001
+            print(f"    ~ Threads: images unavailable ({e}), posting text only")
+    if len(urls) >= 2:
+        children = [http_post(f"{base}/threads", {"media_type": "IMAGE", "image_url": u, "is_carousel_item": "true",
+                                                  "access_token": token})["id"] for u in urls]
+        for c in children:
+            _threads_wait(c, token)
+        params.update({"media_type": "CAROUSEL", "children": ",".join(children)})
+    elif len(urls) == 1:
+        params.update({"media_type": "IMAGE", "image_url": urls[0]})
+    else:
+        params["media_type"] = "TEXT"
+    cid = http_post(f"{base}/threads", params)["id"]
+    _threads_wait(cid, token)
+    return http_post(f"{base}/threads_publish", {"creation_id": cid, "access_token": token}).get("id", "")
+
+
+DIGEST_POSTERS = {"Facebook": post_facebook_digest, "Instagram": post_instagram_digest,
+                  "Threads": post_threads_digest}
+
+RATE_LIMIT_MARKERS = ('"code":4,', '"code":17,', '"code":32,', '"code":613,', "request limit",
+                      "2207042", "2207051", "HTTP 429")
+
+
+def is_rate_limit(err: Exception | str) -> bool:
+    """Meta 'Application request limit reached' / 'too many calls' / publishing-cap errors.
+    Retrying these never helps (and the post may already be live), so they are never retried."""
+    text = str(err).replace(" ", "")
+    return any(m.replace(" ", "") in text for m in RATE_LIMIT_MARKERS)
+
+
+def digest_cooldown_until(name: str) -> float:
+    last = max((f["ts"] for f in STATS.get("fails", [])
+                if f.get("platform") == name and is_rate_limit(f.get("error", ""))), default=0)
+    return last + config.DIGEST_RATE_LIMIT_COOLDOWN_HOURS * 3600 if last else 0
+
+
+def headline_key(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", (text or "").lower()))[:120]
+
+
+def _first_line(text: str) -> str:
+    return headline_key((text or "").strip().split("\n", 1)[0])
+
+
+def recent_captions(name: str) -> list[str]:
+    """First lines of the account's 5 newest posts (1 cheap API call)."""
+    if name == "Instagram":
+        token = env("INSTAGRAM_ACCESS_TOKEN") or env("FB_PAGE_TOKEN")
+        r = http_get_json(graph(f"{env('IG_USER_ID')}/media"),
+                          {"fields": "caption,timestamp", "limit": "5", "access_token": token})
+        return [_first_line(m.get("caption", "")) for m in r.get("data", [])]
+    if name == "Threads":
+        r = http_get_json(f"https://graph.threads.net/v1.0/{env('THREADS_USER_ID') or 'me'}/threads",
+                          {"fields": "text,timestamp", "limit": "5", "access_token": env("THREADS_ACCESS_TOKEN")})
+        return [_first_line(m.get("text", "")) for m in r.get("data", [])]
+    if name == "Facebook":
+        r = http_get_json(graph(f"{env('FB_PAGE_ID')}/posts"),
+                          {"fields": "message,created_time", "limit": "5", "access_token": env("FB_PAGE_TOKEN")})
+        return [_first_line(m.get("message", "")) for m in r.get("data", [])]
+    return []
+
+
+def already_live(name: str, dg: dict, retry: bool) -> bool:
+    """True if this exact carousel is already on the account (e.g. an earlier attempt got an
+    error back even though Instagram published it). If the check itself fails on a retry,
+    play safe and assume it is live, so we never post twice."""
+    if not config.DIGEST_DUP_CHECK:
+        return False
+    try:
+        mine = threads_caption(dg) if name == "Threads" else dg["caption"]
+        return _first_line(mine) in recent_captions(name)
+    except Exception as e:  # noqa: BLE001
+        print(f"    ! {name} duplicate check failed: {e}")
+        return retry
 
 
 def digest_platforms() -> list[str]:
     on = set(enabled_platforms()) | ({"Instagram"} if all(env(k) for k in PLATFORMS["Instagram"][1])
                                      and images.available() else set())
+    if env("THREADS_ACCESS_TOKEN"):
+        on.add("Threads")
     return [n for n in config.DIGEST_PLATFORMS if n in on and n in DIGEST_POSTERS]
 
 
@@ -955,11 +1086,30 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
     st["queue"] = [q for q in (st["queue"] + new_items)[-300:]
                    if q["ts"] >= now - config.DIGEST_MAX_AGE_HOURS * 3600]   # drop stale leftovers
     cur = hour_key(now)
+    used = {k: t for k, t in st.get("used", {}).items() if t > now - 2 * 86400}   # headlines already in a carousel
+    st["used"] = used
     if not st.get("batch"):
         ready = [q for q in st["queue"] if hour_key(q["ts"]) < cur]
+        st["queue"] = [q for q in st["queue"] if hour_key(q["ts"]) >= cur]
+        if config.DIGEST_SKIP_IF_NO_NEW:
+            recent_words = [set(w["words"]) for w in st.get("used_words", [])
+                            if w["ts"] > now - config.DIGEST_SIMILAR_HOURS * 3600]
+            fresh, seen = [], set()
+            for q in sorted(ready, key=lambda q: (q["priority"], q.get("focus", False)), reverse=True):
+                k, words = headline_key(q["headline"]), set(q.get("words", []))
+                if not k or k in used or k in seen:
+                    continue                                    # exact repeat
+                if words and any(similar(words, w) for w in recent_words):
+                    continue                                    # same story, reworded
+                seen.add(k)
+                recent_words.append(words)
+                fresh.append(q)
+            fresh.sort(key=lambda q: q["ts"])
+            if ready and not fresh:
+                print("\n=== Hourly digest: no new headlines since the last carousel - nothing posted ===")
+            ready = fresh
         if ready:
-            st["batch"] = {"items": ready, "done": [], "attempts": 0}
-            st["queue"] = [q for q in st["queue"] if hour_key(q["ts"]) >= cur]
+            st["batch"] = {"items": ready, "done": [], "skipped": [], "attempts": 0}
     batch = st.get("batch")
     if batch:
         dg = build_digest(batch["items"])
@@ -972,7 +1122,18 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
             st["batch"] = None
         else:
             batch["attempts"] += 1
-            for name in [n for n in platforms if n not in batch["done"]]:
+            batch.setdefault("skipped", [])
+            if batch.get("urls"):                      # reuse slides uploaded by an earlier attempt
+                dg["urls"], dg["photo_ids"] = batch["urls"], batch.get("photo_ids", [])
+            for name in [n for n in platforms if n not in batch["done"] + batch["skipped"]]:
+                if now < digest_cooldown_until(name) or (name == "Threads" and now < threads_blocked_until(now)):
+                    print(f"    - {name}: rate-limited recently, skipping this carousel")
+                    batch["skipped"].append(name)
+                    continue
+                if already_live(name, dg, retry=batch["attempts"] > 1):
+                    print(f"    ✓ {name} carousel already live - not posting it again")
+                    batch["done"].append(name)
+                    continue
                 try:
                     pid = DIGEST_POSTERS[name](dg)
                     batch["done"].append(name)
@@ -980,8 +1141,19 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
                 except Exception as e:  # noqa: BLE001
                     print(f"    ! {name} digest failed (attempt {batch['attempts']}): {e}")
                     record_fail(name, e, now)
-            if set(platforms) <= set(batch["done"]) or batch["attempts"] >= config.DIGEST_MAX_ATTEMPTS:
+                    if is_rate_limit(e):
+                        batch["skipped"].append(name)   # never retry a rate limit (it may even be live)
+            if dg.get("urls"):
+                batch["urls"], batch["photo_ids"] = dg["urls"], dg.get("photo_ids", [])
+            finished = set(platforms) <= set(batch["done"] + batch["skipped"])
+            if finished or batch["attempts"] >= config.DIGEST_MAX_ATTEMPTS:
                 STATS.setdefault("digests", []).append({"ts": now, "done": list(batch["done"])})
+                if batch["done"]:
+                    for q in batch["items"]:
+                        used[headline_key(q["headline"])] = now
+                    st["used_words"] = [w for w in st.get("used_words", [])
+                                        if w["ts"] > now - config.DIGEST_SIMILAR_HOURS * 3600] + \
+                        [{"ts": now, "words": q.get("words", [])} for q in batch["items"] if q.get("words")]
                 st["batch"] = None
     save(DIGEST_FILE, st)
 
@@ -1567,8 +1739,9 @@ def main() -> int:
     stories.sort(key=lambda s: (s["priority"], s.get("focus", False), not s.get("is_price")), reverse=True)
     print(f"Price alerts: {len(alerts)}")
     last_24h = sum(1 for p in posted if p["ts"] > now - 86400)
-    budget = min(config.MAX_POSTS_PER_RUN, config.MAX_POSTS_PER_DAY - last_24h)       # news
-    day_left = config.MAX_POSTS_PER_DAY - last_24h                                      # everything
+    day_cap = config.MAX_POSTS_PER_DAY or 10**9                                           # 0 = unlimited
+    budget = min(config.MAX_POSTS_PER_RUN, day_cap - last_24h)                          # news
+    day_left = day_cap - last_24h                                                       # everything
     print(f"Confirmed stories: {len(stories)} | posts in last 24h: {last_24h} | news slots now: {max(budget, 0)}")
 
     platforms = enabled_platforms()

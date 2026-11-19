@@ -400,12 +400,18 @@ IMAGE_DAILY_LIMITS = {"Facebook": 40, "Instagram": 25}   # only used if a platfo
 # hour: a swipeable carousel (cover slide summarising the hour + one card per
 # headline, max 10 slides). Every other platform keeps posting each headline live.
 # Set DIGEST_PLATFORMS = [] to go back to one Facebook/Instagram post per headline.
-DIGEST_PLATFORMS = ["Facebook", "Instagram"]
+DIGEST_PLATFORMS = ["Facebook", "Instagram", "Threads"]   # update 13: Threads joins the roundup
+DIGEST_WINDOW_MINUTES = 30       # one roundup post every 30 minutes (Telegram stays instant)
 DIGEST_MIN_PRIORITY = 2          # 2 = markets + geopolitics; 3 = markets & price alerts only
-DIGEST_MAX_SLIDES = 10           # Instagram carousels allow up to 10 via the API
+DIGEST_MAX_SLIDES = 15           # per 30-minute roundup = up to 30 headlines an hour (Facebook shows them all)
+DIGEST_SLIDE_LIMITS = {"Instagram": 10, "Threads": 20}   # API maximums per post; the rest go in the caption
+DIGEST_SIMILAR_HOURS = 6         # a story already in a roundup in the last 6 h is never posted again, even reworded
 DIGEST_COVER = False             # False = slide 1 is the top headline itself (no summary cover slide)
 DIGEST_TIMEZONE = "America/New_York"   # hours & labels in Eastern time ("16:00–17:00 EST"); or "UTC", "Asia/Kolkata"
-DIGEST_MAX_ATTEMPTS = 3          # retries per platform if Facebook/Instagram is down
+DIGEST_MAX_ATTEMPTS = 2          # retries per platform if Facebook/Instagram is down (never on rate limits)
+DIGEST_RATE_LIMIT_COOLDOWN_HOURS = 2   # after "request limit reached", skip that platform's carousels this long
+DIGEST_SKIP_IF_NO_NEW = True     # no new headlines since the last carousel = post nothing that hour
+DIGEST_DUP_CHECK = True          # before posting/retrying, check the account's recent posts so nothing is posted twice
 DIGEST_MAX_AGE_HOURS = 2         # never put headlines older than this in a carousel
 IMAGE_MIN_PRIORITY = 3          # 3 = markets + price alerts only; 2 = also geopolitics
 MAX_HASHTAGS_INSTAGRAM = 5
@@ -421,8 +427,9 @@ CARD_ACCENT_UPDATE = (90, 160, 255)    # blue pill
 # ===========================================================================
 # 8. LIMITS & MATCHING
 # ===========================================================================
-MAX_POSTS_PER_DAY = 200   # rolling 24h (Threads allows 250)
-MAX_POSTS_PER_RUN = 5     # per 5-minute run
+MAX_POSTS_PER_DAY = 0     # 0 = UNLIMITED (Telegram has no daily cap). Threads, Instagram and Facebook
+                          # keep their own limits below (THREADS_DAILY_MAX, hourly carousels).
+MAX_POSTS_PER_RUN = 10    # per 5-minute run (15 s apart, well under Telegram's ~1 msg/second)
 FRESH_HOURS = 3           # ignore news older than this
 MIN_SHARED_WORDS = 3      # headlines must share this many key words...
 MIN_OVERLAP = 0.5         # ...and this fraction of the shorter one's key words...

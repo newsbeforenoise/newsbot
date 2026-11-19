@@ -760,16 +760,19 @@ def _qitem(i, prio=3, ts=None):
             "priority": prio, "focus": True, "story": {"priority": prio, "countries": ["US"]}}
 
 def test_digest_caps_at_10_slides_no_cover():
+    old_max = bot.config.DIGEST_MAX_SLIDES
+    bot.config.DIGEST_MAX_SLIDES = 10          # the cap logic itself (live setting is 15)
     items = [_qitem(i) for i in range(14)]
-    dg = bot.build_digest(items)
-    assert len(dg["slides"]) == 10 and dg["count"] == 14
-    assert "+4 more headlines" in dg["caption"] and dg["caption"].count("\n10. ") == 1
-    bot.config.DIGEST_COVER = True
     try:
+        dg = bot.build_digest(items)
+        assert len(dg["slides"]) == 10 and dg["count"] == 14
+        assert "+4 more headlines" in dg["caption"] and dg["caption"].count("\n10. ") == 1
+        bot.config.DIGEST_COVER = True
         dg2 = bot.build_digest(items)
         assert len(dg2["slides"]) == 10 and "+5 more headlines" in dg2["caption"]
     finally:
         bot.config.DIGEST_COVER = False
+        bot.config.DIGEST_MAX_SLIDES = old_max
     assert "#Fed" in dg["caption"] and "#Markets" in dg["caption"] and len(dg["caption"]) <= 2150
     from PIL import Image
     import io
@@ -788,15 +791,22 @@ def test_hour_window_label():
     import datetime as dt
     t = dt.datetime(2026, 11, 18, 14, 25, tzinfo=dt.timezone.utc).timestamp()
     bot.config.DIGEST_TIMEZONE = "UTC"
-    assert bot.hour_window(t, t) == "14:00–15:00 UTC"
-    assert bot.hour_window(t, t + 2 * 3600) == "14:00–17:00 UTC"
+    old_w = bot.config.DIGEST_WINDOW_MINUTES
     try:
-        bot.config.DIGEST_TIMEZONE = "Asia/Kolkata"
-        assert bot.hour_window(t, t) == "19:00–20:00 IST", bot.hour_window(t, t)
+        bot.config.DIGEST_WINDOW_MINUTES = 30                         # live setting: 30-minute roundups
+        assert bot.hour_window(t, t) == "14:00–14:30 UTC"
+        assert bot.hour_window(t, t + 2 * 3600) == "14:00–16:30 UTC"
+        bot.config.DIGEST_TIMEZONE = "Asia/Kolkata"                   # 19:55 IST (+5:30)
+        assert bot.hour_window(t, t) == "19:30–20:00 IST", bot.hour_window(t, t)
         bot.config.DIGEST_TIMEZONE = "America/New_York"
-        assert bot.hour_window(t, t) == "09:00–10:00 EST", bot.hour_window(t, t)
+        assert bot.hour_window(t, t) == "09:00–09:30 EST", bot.hour_window(t, t)
+        bot.config.DIGEST_WINDOW_MINUTES = 60                         # hourly still works
+        bot.config.DIGEST_TIMEZONE = "UTC"
+        assert bot.hour_window(t, t) == "14:00–15:00 UTC"
+        assert bot.hour_window(t, t + 2 * 3600) == "14:00–17:00 UTC"
     finally:
         bot.config.DIGEST_TIMEZONE = "America/New_York"
+        bot.config.DIGEST_WINDOW_MINUTES = old_w
 
 def test_feed_parsing_rss_and_atom():
     rss = b"""<rss><channel><item><title>Fed holds rates steady</title><link>http://x</link>
