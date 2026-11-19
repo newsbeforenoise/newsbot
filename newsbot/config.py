@@ -540,3 +540,18 @@ REPORT_FOLLOWERS = True
 # still gets everything. Raise these slowly as the account ages.
 THREADS_MAX_PER_HOUR = 6
 THREADS_MIN_PRIORITY = 3          # 3 = markets/official/price alerts (+ anything BREAKING); 2 = also geopolitics
+
+# --- 🧾 Daily evening recap (update 10) ----------------------------------------------
+# One long "everything that happened today" post, like a market newsletter.
+# Written by a free AI model (GitHub Models) from ONLY the day's confirmed headlines,
+# their article summaries and closing prices. Any paragraph with a number that isn't
+# in that material is replaced by the plain headline. No AI? A plain numbered list.
+DAILY_RECAP_ENABLED = True
+DAILY_RECAP_US_AT = "17:15"       # Global/US edition, New York time (weekdays)
+DAILY_RECAP_IN_AT = "16:30"       # India edition, India time (weekdays)
+DAILY_RECAP_ITEMS_US = 10
+DAILY_RECAP_ITEMS_IN = 8
+DAILY_RECAP_MIN_ITEMS = 3
+DAILY_RECAP_AI = True             # False = always the plain numbered list
+DAILY_RECAP_MODELS = ["openai/gpt-4.1-mini", "openai/gpt-4o-mini"]   # tried in order (free tier)
+DAILY_RECAP_PLATFORMS = ["Telegram", "Facebook", "Threads"]   # Threads gets a short version + Telegram link

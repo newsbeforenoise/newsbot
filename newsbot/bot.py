@@ -46,6 +46,7 @@ import extras  # noqa: E402
 import images  # noqa: E402
 import prices  # noqa: E402
 import recap  # noqa: E402
+import daily_recap  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE_DIR = ROOT / "state"
@@ -280,6 +281,16 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1].lower()
 
 
+def clean_summary(text: str) -> str:
+    """Plain-text article summary from an RSS description (HTML removed, max 600 chars)."""
+    if not text:
+        return ""
+    text = html.unescape(re.sub(r"<[^>]+>", " ", html.unescape(text)))
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"(Continue reading|Read more|The post .* appeared first on).*$", "", text, flags=re.I).strip()
+    return text[:600]
+
+
 def parse_feed(raw: bytes) -> list[dict]:
     """Returns [{title, link, published}] from RSS 2.0, RSS 1.0 (RDF) or Atom.
     Falls back to a forgiving regex parser when the XML is broken."""
@@ -289,16 +300,19 @@ def parse_feed(raw: bytes) -> list[dict]:
         for el in root.iter():
             if _local(el.tag) not in ("item", "entry"):
                 continue
-            title = link = date = ""
+            title = link = date = summary = ""
             for ch in el:
                 name = _local(ch.tag)
                 if name == "title":
                     title = "".join(ch.itertext()).strip()
+                elif name in ("description", "summary", "encoded", "content") and not summary:
+                    summary = "".join(ch.itertext()).strip()
                 elif name == "link" and not link:
                     link = (ch.text or ch.get("href") or "").strip()
                 elif name in ("pubdate", "published", "updated", "date") and not date:
                     date = (ch.text or "").strip()
-            out.append({"title": title, "link": link, "published": parse_date(date)})
+            out.append({"title": title, "link": link, "published": parse_date(date),
+                        "summary": clean_summary(summary)})
         return out
     except ET.ParseError:
         pass
@@ -348,6 +362,7 @@ def collect(items: dict, feed: dict, entries: list[dict], now: float) -> int:
             "seen": now,
             "words": sorted(key_words(title)),
             "official": bool(feed.get("official")),
+            "summary": e.get("summary", ""),
         }
         added += 1
     return added
@@ -471,6 +486,7 @@ def find_stories(items: dict, posted: list, now: float, trends: list[str] | None
             "followup": bool(followup_of),
             "official": bool(official),
             "all_text": all_text,
+            "summary": max((g.get("summary", "") for g in group), key=len, default=""),
         })
     # tier 1 first, then tier 2, then tier 3; US/India first within a tier
     stories.sort(key=lambda s: (s["priority"], s["focus"]), reverse=True)
@@ -1293,6 +1309,28 @@ def run_recaps(now: float, dry: bool, posted: list, platforms: list[str]) -> Non
             publish_special(special_post(dg["text"], ["#WeekInReview", "#Markets"], "recap"), "recap",
                             now, dry, posted, platforms)
 
+    # 🧾 daily evening recaps (Global/US + India)
+    if config.DAILY_RECAP_ENABLED:
+        dr = st.setdefault("daily_recap", {})
+        for ed, at in (("us", config.DAILY_RECAP_US_AT), ("in", config.DAILY_RECAP_IN_AT)):
+            info = dr.setdefault(ed, {})
+            tzname = daily_recap.EDITIONS[ed]["tz"]
+            day = recap.due(at, tzname, info.get("day", ""), now, window_hours=4)
+            if not day or datetime.fromtimestamp(now, _zone(tzname)).weekday() >= 5:
+                continue
+            info["day"] = day
+            since = max(info.get("ts", 0), now - 26 * 3600)
+            stories = daily_recap.pick(st["log"], ed, since, now + 1)
+            if len(stories) < config.DAILY_RECAP_MIN_ITEMS:
+                print(f"Daily recap ({ed}): only {len(stories)} stories - skipped")
+                continue
+            info["ts"] = now
+            r = daily_recap.compose(ed, stories, daily_recap.market_lines(PRICE_STATE, ed), now,
+                                    env("GH_MODELS_TOKEN"))
+            print(f"\n=== Daily recap ({ed}): {r['count']} stories, {r['mode']}, "
+                  f"{r['fallbacks']} plain fallbacks ===\n{r['text']}")
+            publish_daily_recap(r, ed, now, dry, posted, platforms)
+
     # 👋 one-time welcome post
     if config.WELCOME_ENABLED and not st.get("welcome_done"):
         p = special_post(config.WELCOME_TEXT, [], "welcome")
@@ -1301,6 +1339,55 @@ def run_recaps(now: float, dry: bool, posted: list, platforms: list[str]) -> Non
             if not dry:
                 pin_latest_telegram(posted[-1])
     save(RECAP_FILE, st)
+
+
+def _zone(name: str):
+    from zoneinfo import ZoneInfo
+    return ZoneInfo(name)
+
+
+PRICE_STATE: dict = {}
+
+
+def publish_daily_recap(r: dict, edition: str, now: float, dry: bool, posted: list, platforms: list[str]) -> None:
+    done: list[str] = []
+    if not dry:
+        targets = [n for n in config.DAILY_RECAP_PLATFORMS if n in platforms or n == "Facebook"]
+        if "Telegram" in targets and env("TELEGRAM_BOT_TOKEN") and env("TELEGRAM_CHANNEL_ID"):
+            try:
+                api = f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}"
+                for chunk in daily_recap.split_for_telegram(r["text"]):
+                    http_post(f"{api}/sendMessage", {"chat_id": env("TELEGRAM_CHANNEL_ID"), "text": chunk,
+                                                     "disable_web_page_preview": "true"})
+                done.append("Telegram")
+            except Exception as e:  # noqa: BLE001
+                print(f"    ! Telegram recap failed: {e}")
+                record_fail("Telegram recap", e, now)
+        if "Facebook" in targets and env("FB_PAGE_ID") and env("FB_PAGE_TOKEN") and config.FACEBOOK_PUBLISH:
+            try:
+                http_post(graph(f"{env('FB_PAGE_ID')}/feed"), {"message": r["text"],
+                                                               "access_token": env("FB_PAGE_TOKEN")})
+                done.append("Facebook")
+            except Exception as e:  # noqa: BLE001
+                print(f"    ! Facebook recap failed: {e}")
+                record_fail("Facebook recap", e, now)
+        if "Threads" in targets:
+            try:
+                post_threads(special_post(r["short"], daily_recap.EDITIONS[edition]["tags"], "recap"))
+                done.append("Threads")
+            except Exception as e:  # noqa: BLE001
+                print(f"    ! Threads recap failed: {e}")
+                record_fail("Threads recap", e, now)
+        try:
+            tg_link = f"t.me/{config.BRAND_HANDLE.lstrip('@')}"
+            x_text = r["short"].split("\n")[0] + f"\n\nFull recap: {tg_link}"
+            send_private("📝 Daily recap (copy for X):\n\n" + r["text"][:3500] + "\n\n👉 Post on X: "
+                         "https://x.com/intent/tweet?text=" + urllib.parse.quote(x_text))
+        except Exception as e:  # noqa: BLE001
+            print(f"    ! recap X alert failed: {e}")
+        print(f"    ✓ daily recap posted on: {', '.join(done) or 'nothing'}")
+    posted.append({"ts": now, "text": r["short"], "words": [], "sources": [], "item_ids": [],
+                   "story_id": f"recap:{edition}:{int(now)}", "platforms": done, "kind": "recap"})
 
 
 def pin_latest_telegram(entry: dict) -> None:
@@ -1440,6 +1527,8 @@ def main() -> int:
     print("Checking live prices...")
     alerts = prices.price_alerts(price_state, now)
     save(PRICES_FILE, price_state)
+    PRICE_STATE.clear()
+    PRICE_STATE.update(price_state)
 
     if first_run:
         for it in items.values():

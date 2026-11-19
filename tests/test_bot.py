@@ -831,6 +831,30 @@ def test_bell_line_format():
     assert extras.bell_line("INR=X", [88.5, 88.6, 0]) == "USD/INR 88.50 ▼ -0.11%"
     assert extras.bell_line("NOPE", [1, 1, 0]) is None
 
+import daily_recap  # noqa: E402
+
+def test_recap_fact_check_replaces_invented_numbers():
+    stories = [{"headline": "Fed Cuts Rates By 25 Bps", "credit": "Reuters"},
+               {"headline": "Gold Hits Record", "credit": "CNBC"}]
+    material = "Fed cut rates by 25 bps to 3.75% | Gold hit a record $3,750"
+    ai = "1. The Fed cut rates by 25 bps to 3.75%. (Reuters)\n\n2. Gold rose 4.2% to a record. (CNBC)"
+    paras, fb = daily_recap.checked_paragraphs(ai, stories, material)
+    assert paras[0].startswith("1. The Fed cut rates by 25 bps to 3.75%")
+    assert paras[1] == "2. Gold Hits Record (CNBC)" and fb == 1          # 4.2% was invented
+
+def test_recap_missing_paragraph_falls_back():
+    paras, fb = daily_recap.checked_paragraphs("1. Only one. (BBC)", [{"headline": "A", "credit": ""},
+                                                                      {"headline": "B", "credit": ""}], "")
+    assert paras == ["1. Only one. (BBC)", "2. B"] and fb == 1
+
+def test_telegram_split_keeps_paragraphs():
+    text = "\n\n".join("x" * 1500 for _ in range(5))
+    chunks = daily_recap.split_for_telegram(text)
+    assert all(len(c) <= 4000 for c in chunks) and len(chunks) == 3
+
+def test_clean_summary_strips_html():
+    assert bot.clean_summary("<p>Stocks &amp; bonds <b>rose</b></p> Continue reading...") == "Stocks & bonds rose"
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in list(globals().items()):

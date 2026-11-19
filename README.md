@@ -228,3 +228,11 @@ in that folder to add them to the rotation.
 
 The video tool (ffmpeg, via the `imageio-ffmpeg` pip package) is installed only on runs around reel time.
 Threads follower counts need the `threads_manage_insights` permission; until then the report shows "n/a".
+
+## Update 10: daily evening recap
+Two long "everything that happened today" posts on weekdays: **Global/US** at 5:15 PM ET and **India** at
+4:30 PM IST. Full text goes to Telegram and Facebook; Threads gets a short version with a Telegram link; your private chat gets
+a copy plus an X link. Written by a free AI model (GitHub Models, via the workflow's own token, no
+key needed) from only that day's confirmed headlines, article summaries and closing prices. Any paragraph
+with a number not in that material is replaced by the plain headline; if the AI is unavailable, a plain
+numbered list is posted. Turn off with `DAILY_RECAP_ENABLED = False` (or `DAILY_RECAP_AI = False` for list only).

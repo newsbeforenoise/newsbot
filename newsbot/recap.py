@@ -32,7 +32,8 @@ def log_item(p: dict, story: dict, now: float) -> dict:
     return {"ts": now, "headline": p["headline"], "credit": p["credit_main"],
             "story_id": story.get("story_id", ""), "priority": story["priority"],
             "focus": bool(story.get("focus")), "breaking": bool(story.get("breaking")),
-            "n_sources": len(story.get("sources", [])),
+            "n_sources": len(story.get("sources", [])), "summary": story.get("summary", "")[:600],
+            "countries": story.get("countries", []), "sources": story.get("sources", [])[:3],
             "story": {k: story.get(k) for k in ("priority", "countries", "followup", "is_price")}}
 
 

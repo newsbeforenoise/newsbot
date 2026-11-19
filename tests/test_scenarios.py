@@ -156,6 +156,8 @@ def setup():
     bot.config.REEL_ENABLED = bot.config.WEEKLY_ENABLED = bot.config.WELCOME_ENABLED = False
     bot.config.REPORT_FOLLOWERS = False
     bot.config.THREADS_MAX_PER_HOUR, bot.config.THREADS_MIN_PRIORITY = 1000, 1
+    bot.config.DAILY_RECAP_ENABLED = False
+    os.environ.pop("GH_MODELS_TOKEN", None)
     bot.fetch, prices.fetch_quote = net.fetch, net.quote
     bot.http_post, bot.http_post_file = net.http_post, net.http_post_file
     bot.http_get_json, bot.http_post_bytes = net.http_get_json, net.http_post_bytes
@@ -865,6 +867,99 @@ def s37_youtube_short_and_private_copy():
         for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"):
             os.environ.pop(k, None)
     return "YouTube Short uploaded once (title, #Shorts, News category) + copy in your private chat"
+
+
+
+INDIA = [["RBI keeps repo rate unchanged at 6.5% as India inflation eases",
+          "India's RBI holds repo rate at 6.5% as inflation eases",
+          "RBI leaves repo rate at 6.5%, India inflation eases"],
+         ["India's Sensex closes at record high as Reliance and HDFC Bank rally",
+          "Sensex hits record close in India as Reliance, HDFC Bank rally",
+          "India Sensex record close led by Reliance and HDFC Bank rally"],
+         ["Infosys wins $2 billion AI deal, India IT stocks climb",
+          "India's Infosys bags $2 billion AI contract, IT stocks climb",
+          "Infosys signs $2 billion AI deal; India IT shares climb"]]
+
+
+def _recap_day(net, ed):
+    import daily_recap
+    calls = []
+    def fake_ai(prompt, token):
+        calls.append(prompt)
+        n = prompt.count("Headline:")
+        paras = [f"{i}. Paragraph about story {i} with 2.4% from the summary (BBC)." for i in range(1, n + 1)]
+        paras[1] = "2. This one invents a number: shares jumped 37.9% (BBC)."        # not in the material
+        return "\n\n".join(paras)
+    daily_recap.ai_write = fake_ai
+    return calls
+
+
+def s38_daily_us_recap_ai_with_fact_check():
+    import daily_recap
+    real = daily_recap.ai_write
+    net = setup()
+    bot.config.DAILY_RECAP_ENABLED = True
+    os.environ["GH_MODELS_TOKEN"] = "ghtok"
+    try:
+        calls = _recap_day(net, "us")
+        run_at(net, at_et(2026, 11, 18, 9, 0))
+        put(net, NIKKEI); run_at(net, at_et(2026, 11, 18, 10, 0))
+        put(net, VOLGOGRAD); run_at(net, at_et(2026, 11, 18, 12, 0))
+        net.fed.append("Federal Reserve issues FOMC statement"); run_at(net, at_et(2026, 11, 18, 14, 0))
+        run_at(net, at_et(2026, 11, 18, 17, 20))
+        assert len(calls) == 1 and "Stories:" in calls[0]
+        tg = [c[2]["text"] for c in net.posts("Telegram") if "GLOBAL MARKETS TODAY" in c[2]["text"]]
+        assert len(tg) == 1, net.calls
+        t = tg[0]
+        assert "1. Paragraph about story 1 with 2.4%" in t, t
+        assert "37.9%" not in t and "\n2. " in t, t                         # invented number removed
+        fb = [c for c in net.calls if c[0] == "Facebook" and c[1] == "feed" and "GLOBAL MARKETS" in c[2]["text"]]
+        assert len(fb) == 1
+        th = [c[2]["text"] for c in net.posts("Threads") if "GLOBAL MARKETS" in c[2]["text"]]
+        assert len(th) == 1 and "t.me/NewsB4Noise" in th[0] and len(th[0]) <= 500, th
+        priv = [c for c in net.posts("X-alert") if c[2]["text"].startswith("📝 Daily recap")]
+        assert len(priv) == 1
+        run_at(net, at_et(2026, 11, 18, 17, 25))
+        assert not [c for c in net.posts("Telegram") if "GLOBAL MARKETS" in c[2]["text"]], "recap twice"
+    finally:
+        daily_recap.ai_write = real
+        bot.config.DAILY_RECAP_ENABLED = False
+        os.environ.pop("GH_MODELS_TOKEN", None)
+    return "5:15 PM: AI-written recap on Telegram + Facebook, short version on Threads; made-up number caught"
+
+
+def s39_daily_recap_without_ai_posts_plain_list():
+    net = setup()
+    bot.config.DAILY_RECAP_ENABLED = True
+    try:
+        run_at(net, at_et(2026, 11, 18, 9, 0))
+        put(net, NIKKEI); run_at(net, at_et(2026, 11, 18, 10, 0))
+        put(net, VOLGOGRAD); run_at(net, at_et(2026, 11, 18, 12, 0))
+        net.fed.append("Federal Reserve issues FOMC statement"); run_at(net, at_et(2026, 11, 18, 14, 0))
+        run_at(net, at_et(2026, 11, 18, 17, 20))                       # no GH_MODELS_TOKEN -> plain list
+        t = [c[2]["text"] for c in net.posts("Telegram") if "GLOBAL MARKETS" in c[2]["text"]][0]
+        assert "1. Federal Reserve Issues FOMC Statement" in t and "Not financial advice" in t, t
+    finally:
+        bot.config.DAILY_RECAP_ENABLED = False
+    return "AI unavailable: recap still posts as a clean numbered list"
+
+
+def s40_india_recap_only_india_stories():
+    net = setup()
+    bot.config.DAILY_RECAP_ENABLED = True
+    try:
+        # India day: 9 AM - 3 PM IST = 22:30 - 04:30 ET (previous evening)
+        run_at(net, at_et(2026, 11, 17, 22, 0))
+        put(net, NIKKEI); run_at(net, at_et(2026, 11, 17, 23, 0))
+        for st in INDIA:
+            put(net, st); run_at(net, at_et(2026, 11, 18, 1, 0) + 600 * INDIA.index(st))
+        run_at(net, at_et(2026, 11, 18, 6, 5))                          # 4:35 PM IST
+        t = [c[2]["text"] for c in net.posts("Telegram") if "INDIA MARKETS" in c[2]["text"]]
+        assert len(t) == 1, [c[2]["text"][:60] for c in net.posts("Telegram")]
+        assert "Repo Rate" in t[0] and "Sensex" in t[0] and "Infosys" in t[0] and "Yen" not in t[0], t[0]
+    finally:
+        bot.config.DAILY_RECAP_ENABLED = False
+    return "4:30 PM IST: India edition with only India stories (Japan story left for the global edition)"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]
