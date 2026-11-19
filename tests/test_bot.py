@@ -500,6 +500,8 @@ def test_same_story_twice_in_one_run_posts_once():
     import tempfile, pathlib, json
     d = pathlib.Path(tempfile.mkdtemp())
     bot.STATE_DIR, bot.ITEMS_FILE, bot.POSTED_FILE, bot.PRICES_FILE = d, d/"i.json", d/"p.json", d/"pr.json"
+    bot.DIGEST_FILE, bot.EXTRAS_FILE, bot.STATS_FILE, bot.RECAP_FILE = d/"d.json", d/"e.json", d/"s.json", d/"r.json"
+    bot.HEALTH_FILE, bot.PREVIEW_DIR = d/"h.json", d/"previews"
     bot.ITEMS_FILE.write_text("{}")
     real = (bot.find_stories, bot.prices.price_alerts, bot.fetch)
     bot.find_stories = lambda *a, **k: [st1, st2]
@@ -507,7 +509,8 @@ def test_same_story_twice_in_one_run_posts_once():
     bot.fetch = lambda *a, **k: None
     try:
         bot.main()
-        assert len(json.loads(bot.POSTED_FILE.read_text())) == 1
+        news = [p for p in json.loads(bot.POSTED_FILE.read_text()) if not p.get("kind")]
+        assert len(news) == 1, news            # (welcome / market posts are separate entries)
     finally:
         bot.find_stories, bot.prices.price_alerts, bot.fetch = real
         os.environ.pop("DRY_RUN")
