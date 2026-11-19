@@ -262,6 +262,20 @@ def build_report(posted: list, stats: dict, enabled: list[str], digest_on: list[
         lines.append("Errors: " + " | ".join(f"{k} {len(v)}" for k, v in sorted(by.items())))
         for k, v in sorted(by.items()):
             lines.append(f"  {k} last error: {v[-1]['error'][:120]}")
+    reels = [r for r in stats.get("reels", []) if r["ts"] > since]
+    if reels:
+        lines.append("Daily reel: " + (", ".join(reels[-1]["done"]) or "failed"))
+    fol = stats.get("followers") or {}
+    if fol:
+        prev = stats.get("followers_prev") or {}
+        bits = []
+        for k, v in fol.items():
+            if v is None:
+                bits.append(f"{k} n/a")
+            else:
+                d = v - prev[k] if isinstance(prev.get(k), int) else None
+                bits.append(f"{k} {v:,}" + (f" ({d:+,})" if d else ""))
+        lines.append("👥 Followers: " + " | ".join(bits))
     feeds = stats.get("feeds")
     if feeds:
         lines.append(f"News feeds working: {feeds[0]}/{feeds[1]}")

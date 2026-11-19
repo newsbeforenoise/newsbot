@@ -45,6 +45,7 @@ import config  # noqa: E402
 import extras  # noqa: E402
 import images  # noqa: E402
 import prices  # noqa: E402
+import recap  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE_DIR = ROOT / "state"
@@ -55,6 +56,7 @@ PREVIEW_DIR = ROOT / "previews"
 DIGEST_FILE = STATE_DIR / "digest.json"
 EXTRAS_FILE = STATE_DIR / "extras.json"     # market bells / calendar bookkeeping
 STATS_FILE = STATE_DIR / "stats.json"       # errors & carousels for the daily report
+RECAP_FILE = STATE_DIR / "recap.json"       # headline log for the daily reel / weekly recap
 
 USER_AGENT = "Mozilla/5.0 (compatible; NewsHeadlineBot/1.0)"
 ATOM = "{http://www.w3.org/2005/Atom}"
@@ -668,14 +670,14 @@ def http_get_json(url: str, params: dict) -> dict:
 
 
 def http_post_file(url: str, fields: dict, file_field: str, filename: str, data: bytes,
-                   headers: dict | None = None) -> dict:
+                   headers: dict | None = None, content_type: str = "image/jpeg") -> dict:
     """multipart/form-data upload using only the standard library."""
     boundary = "----nbn" + hashlib.sha1(data[:64] + str(time.time()).encode()).hexdigest()
     body = b""
     for k, v in fields.items():
         body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n").encode()
     body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{file_field}\"; filename=\"{filename}\"\r\n"
-             f"Content-Type: image/jpeg\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+             f"Content-Type: {content_type}\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
     req = urllib.request.Request(url, data=body, headers={
         "User-Agent": USER_AGENT, "Content-Type": f"multipart/form-data; boundary={boundary}", **(headers or {})})
     try:
@@ -995,7 +997,7 @@ def record_fail(platform: str, err: Exception, now: float) -> None:
 
 
 def save_stats(now: float) -> None:
-    for key in ("fails", "digests"):
+    for key in ("fails", "digests", "reels"):
         STATS[key] = [x for x in STATS.get(key, []) if x["ts"] > now - 2 * 86400][-500:]
     save(STATS_FILE, STATS)
 
@@ -1011,6 +1013,10 @@ def send_daily_report(now: float, dry: bool, posted: list) -> None:
     day = extras.report_due(STATS, now)
     if not day:
         return
+    if config.REPORT_FOLLOWERS:
+        counts = follower_counts()
+        prev = STATS.get("followers") or {}
+        STATS["followers_prev"], STATS["followers"] = prev, counts
     text = extras.build_report(posted, STATS, enabled_platforms(), digest_platforms(), now)
     print("\n=== Daily report ===\n" + text)
     if not dry:
@@ -1037,6 +1043,7 @@ def special_post(text: str, tags: list[str], kind: str) -> dict:
 def publish_special(p: dict, kind: str, now: float, dry: bool, posted: list, platforms: list[str]) -> bool:
     print(f"\n>>> [{kind}] {p['tagged']}")
     done: list[str] = []
+    ids: dict = {}
     if dry:
         print("    (DRY_RUN - not posted)")
     else:
@@ -1045,6 +1052,7 @@ def publish_special(p: dict, kind: str, now: float, dry: bool, posted: list, pla
             try:
                 pid = PLATFORMS[name][0](p)
                 done.append(name)
+                ids[name] = pid
                 print(f"    ✓ {name} {pid}")
             except Exception as e:  # noqa: BLE001
                 print(f"    ! {name} failed: {e}")
@@ -1056,7 +1064,8 @@ def publish_special(p: dict, kind: str, now: float, dry: bool, posted: list, pla
         except Exception as e:  # noqa: BLE001
             print(f"    ! X alert failed: {e}")
     posted.append({"ts": now, "text": p["tagged"], "words": [], "sources": [], "item_ids": [],
-                   "story_id": f"{kind}:{int(now)}", "platforms": done, "kind": kind})
+                   "story_id": f"{kind}:{int(now)}", "platforms": done, "kind": kind,
+                   "telegram_id": ids.get("Telegram", "")})
     return True
 
 
@@ -1107,6 +1116,183 @@ def run_extras(now: float, dry: bool, posted: list, price_state: dict, platforms
     save(EXTRAS_FILE, st)
 
 
+# --- Daily reel, weekly recap, welcome post, follower counts (update 8) --------
+RECAP_LOG: list = []      # stories posted in this run (merged into recap.json by run_recaps)
+
+
+def rupload(url: str, data: bytes, token: str) -> dict:
+    return http_post_bytes(url, data, {"Authorization": f"OAuth {token}", "offset": "0",
+                                       "file_size": str(len(data)), "Content-Type": "application/octet-stream"})
+
+
+def post_instagram_reel(rl: dict) -> str:
+    token = env("INSTAGRAM_ACCESS_TOKEN") or env("FB_PAGE_TOKEN")
+    ig = env("IG_USER_ID")
+    c = http_post(graph(f"{ig}/media"), {"media_type": "REELS", "upload_type": "resumable", "share_to_feed": "true",
+                                         "caption": rl["caption"], "access_token": token})["id"]
+    rupload(f"https://rupload.facebook.com/ig-api-upload/{config.GRAPH_API_VERSION}/{c}", rl["video"], token)
+    for _ in range(40):                      # video processing can take a minute or two
+        st = http_get_json(graph(c), {"fields": "status_code", "access_token": token}).get("status_code")
+        if st in ("FINISHED", None):
+            break
+        if st == "ERROR":
+            raise RuntimeError("Instagram could not process the reel")
+        time.sleep(5)
+    return http_post(graph(f"{ig}/media_publish"), {"creation_id": c, "access_token": token}).get("id", "")
+
+
+def post_facebook_reel(rl: dict) -> str:
+    token, page = env("FB_PAGE_TOKEN"), env("FB_PAGE_ID")
+    start = http_post(graph(f"{page}/video_reels"), {"upload_phase": "start", "access_token": token})
+    vid = start["video_id"]
+    rupload(start.get("upload_url") or f"https://rupload.facebook.com/video-upload/{config.GRAPH_API_VERSION}/{vid}",
+            rl["video"], token)
+    http_post(graph(f"{page}/video_reels"), {"upload_phase": "finish", "video_id": vid, "video_state": "PUBLISHED",
+                                             "description": rl["caption"], "access_token": token})
+    return vid
+
+
+def post_telegram_reel(rl: dict) -> str:
+    api = f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}"
+    r = http_post_file(f"{api}/sendVideo", {"chat_id": env("TELEGRAM_CHANNEL_ID"), "caption": rl["caption"][:1024],
+                                            "supports_streaming": "true", "width": "1080", "height": "1920"},
+                       "video", "reel.mp4", rl["video"], content_type="video/mp4")
+    return str(r.get("result", {}).get("message_id", ""))
+
+
+REEL_POSTERS = {"Instagram": (post_instagram_reel, ["IG_USER_ID", "FB_PAGE_TOKEN"]),
+                "Facebook": (post_facebook_reel, ["FB_PAGE_ID", "FB_PAGE_TOKEN"]),
+                "Telegram": (post_telegram_reel, ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHANNEL_ID"])}
+
+
+def run_recaps(now: float, dry: bool, posted: list, platforms: list[str]) -> None:
+    st = load(RECAP_FILE, {"log": []})
+    st["log"] = [x for x in st.get("log", []) + RECAP_LOG if x["ts"] > now - 8 * 86400][-3000:]
+    RECAP_LOG.clear()
+    tz = _tz()
+    local = datetime.fromtimestamp(now, tz)
+
+    # 🎬 daily reel
+    reel = st.setdefault("reel", {})
+    day = config.REEL_ENABLED and recap.due(config.REEL_AT, config.DIGEST_TIMEZONE, reel.get("day", ""), now)
+    if day:
+        if reel.get("pending") != day:
+            reel.update({"pending": day, "done": [], "attempts": 0})
+        top = recap.top_stories(st["log"], now - 86400, now + 1, config.REEL_STORIES)
+        targets = [n for n in config.REEL_PLATFORMS if n in REEL_POSTERS
+                   and all(env(k) for k in REEL_POSTERS[n][1]) and n not in reel["done"]]
+        if len(top) < 3:
+            print("Daily reel: fewer than 3 stories today - skipped")
+            reel["day"] = day
+        elif not recap.ffmpeg_exe() or not images.available():
+            print("Daily reel: video tool missing - will retry")
+            reel["attempts"] += 1
+        else:
+            rl = recap.build_reel(top, local)
+            print(f"\n=== Daily reel: {rl['count']} stories, {len(rl['video']) // 1024} KB ===")
+            if dry:
+                PREVIEW_DIR.mkdir(exist_ok=True)
+                (PREVIEW_DIR / "reel.mp4").write_bytes(rl["video"])
+                print("    (DRY_RUN - reel not posted; saved as preview)")
+                targets = []
+                reel["done"] = list(config.REEL_PLATFORMS)
+            reel["attempts"] += 1
+            for name in targets:
+                try:
+                    pid = REEL_POSTERS[name][0](rl)
+                    reel["done"].append(name)
+                    print(f"    ✓ {name} reel {pid}")
+                except Exception as e:  # noqa: BLE001
+                    print(f"    ! {name} reel failed (attempt {reel['attempts']}): {e}")
+                    record_fail(f"{name} reel", e, now)
+            remaining = [n for n in targets if n not in reel["done"]]
+            if not remaining or reel["attempts"] >= config.REEL_MAX_ATTEMPTS:
+                reel["day"] = day
+                STATS.setdefault("reels", []).append({"ts": now, "done": list(reel["done"])})
+        if reel.get("attempts", 0) >= config.REEL_MAX_ATTEMPTS:
+            reel["day"] = day
+
+    # 📅 weekly recap (Sunday)
+    wk = st.setdefault("weekly", {})
+    wday = config.WEEKLY_ENABLED and recap.due(config.WEEKLY_AT, config.DIGEST_TIMEZONE, wk.get("day", ""),
+                                               now, weekday=6)
+    if wday:
+        top = recap.top_stories(st["log"], now - 7 * 86400, now + 1, config.WEEKLY_STORIES)
+        wk["day"] = wday
+        if len(top) >= 3 and images.available():
+            start = datetime.fromtimestamp(now - 6 * 86400, tz)
+            dg = recap.build_weekly(top, start, local)
+            print(f"\n=== Weekly recap {dg['window']}: {dg['count']} stories ===")
+            if dry:
+                PREVIEW_DIR.mkdir(exist_ok=True)
+                for i, data in enumerate(dg["slides"], 1):
+                    (PREVIEW_DIR / f"weekly_{i:02d}.jpg").write_bytes(data)
+            else:
+                for name in digest_platforms():
+                    try:
+                        print(f"    ✓ {name} weekly {DIGEST_POSTERS[name](dg)}")
+                    except Exception as e:  # noqa: BLE001
+                        print(f"    ! {name} weekly failed: {e}")
+                        record_fail(f"{name} weekly", e, now)
+            publish_special(special_post(dg["text"], ["#WeekInReview", "#Markets"], "recap"), "recap",
+                            now, dry, posted, platforms)
+
+    # 👋 one-time welcome post
+    if config.WELCOME_ENABLED and not st.get("welcome_done"):
+        p = special_post(config.WELCOME_TEXT, [], "welcome")
+        if publish_special(p, "welcome", now, dry, posted, platforms):
+            st["welcome_done"] = True
+            if not dry:
+                pin_latest_telegram(posted[-1])
+    save(RECAP_FILE, st)
+
+
+def pin_latest_telegram(entry: dict) -> None:
+    """Pins the welcome message in the Telegram channel (bot needs the 'pin messages' right)."""
+    mid = entry.get("telegram_id")
+    if not mid:
+        return
+    try:
+        http_post(f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}/pinChatMessage",
+                  {"chat_id": env("TELEGRAM_CHANNEL_ID"), "message_id": mid, "disable_notification": "true"})
+        print("    ✓ welcome post pinned on Telegram")
+    except Exception as e:  # noqa: BLE001
+        print(f"    ~ could not pin on Telegram ({e}) - pin it in the app")
+
+
+def follower_counts() -> dict:
+    """Current followers per platform (None = not available)."""
+    out: dict = {}
+
+    def safe(name, fn):
+        try:
+            v = fn()
+            out[name] = int(v) if v is not None else None
+        except Exception as e:  # noqa: BLE001
+            print(f"  ~ {name} followers unavailable: {str(e)[:120]}")
+            out[name] = None
+
+    if env("TELEGRAM_BOT_TOKEN") and env("TELEGRAM_CHANNEL_ID"):
+        safe("Telegram", lambda: http_get_json(f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}"
+                                               f"/getChatMemberCount", {"chat_id": env("TELEGRAM_CHANNEL_ID")})
+             .get("result"))
+    if env("IG_USER_ID") and env("FB_PAGE_TOKEN"):
+        safe("Instagram", lambda: http_get_json(graph(env("IG_USER_ID")), {
+            "fields": "followers_count", "access_token": env("INSTAGRAM_ACCESS_TOKEN") or env("FB_PAGE_TOKEN")})
+             .get("followers_count"))
+    if env("FB_PAGE_ID") and env("FB_PAGE_TOKEN"):
+        safe("Facebook", lambda: (lambda r: r.get("followers_count", r.get("fan_count")))(
+            http_get_json(graph(env("FB_PAGE_ID")), {"fields": "followers_count,fan_count",
+                                                     "access_token": env("FB_PAGE_TOKEN")})))
+    if env("THREADS_ACCESS_TOKEN"):
+        def threads():
+            r = http_get_json(f"https://graph.threads.net/v1.0/{env('THREADS_USER_ID') or 'me'}/threads_insights",
+                              {"metric": "followers_count", "access_token": env("THREADS_ACCESS_TOKEN")})
+            return r["data"][0]["total_value"]["value"]
+        safe("Threads", threads)
+    return out
+
+
 def title_case(text: str) -> str:
     """Squawk-style Title Case. Keeps acronyms (US, RBI), numbers and words like iPhone."""
     def fix(w: str) -> str:
@@ -1152,7 +1338,16 @@ def build_posts(story: dict) -> dict:
 # ----------------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------------
+def needs_video() -> bool:
+    """Used by the workflow: install the video tool only around reel time."""
+    st = load(RECAP_FILE, {})
+    return bool(config.REEL_ENABLED and recap.due(config.REEL_AT, config.DIGEST_TIMEZONE,
+                                                     (st.get("reel") or {}).get("day", ""), time.time()))
+
+
 def main() -> int:
+    if "--needs-video" in sys.argv:
+        return 0 if needs_video() else 1
     if os.environ.get("BOT_ENABLED", "true").lower() == "false":
         print("BOT_ENABLED=false -> kill switch on, doing nothing.")
         return 0
@@ -1163,6 +1358,7 @@ def main() -> int:
     posted = load(POSTED_FILE, [])
     STATS.clear()
     STATS.update(load(STATS_FILE, {}))
+    RECAP_LOG.clear()
     first_run = not ITEMS_FILE.exists()
 
     print(f"Reading {len(config.FEEDS)} feeds...")
@@ -1263,6 +1459,8 @@ def main() -> int:
         done_this_run.append(words)
         if story["priority"] >= config.DIGEST_MIN_PRIORITY:
             digest_items.append(queue_for_digest(p, story, now))
+            if not story.get("is_price"):
+                RECAP_LOG.append(recap.log_item(p, story, now))
         posted.append({"ts": now, "text": p["tagged"], "words": story["words"], "sources": story["sources"],
                        "item_ids": story["item_ids"], "story_id": story["story_id"],
                        "platforms": done_platforms, "breaking": bool(story.get("breaking")),
@@ -1279,6 +1477,10 @@ def main() -> int:
             run_digest(now, dry, digest_items)
         except Exception as e:  # noqa: BLE001  the digest must never break live posting
             print(f"  ! digest error: {e}")
+    try:
+        run_recaps(now, dry, posted, platforms)
+    except Exception as e:  # noqa: BLE001  recaps must never break live posting
+        print(f"  ! recap error: {e}")
     try:
         STATS["feeds"] = [feeds_ok, len(config.FEEDS)]
         send_daily_report(now, dry, posted)

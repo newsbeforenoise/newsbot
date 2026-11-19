@@ -15,7 +15,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +29,12 @@ jobs:
 
       - name: Install Pillow (for Instagram/Facebook image cards)
         run: pip install --quiet pillow || echo "Pillow install failed - image cards skipped"
+
+      - name: Install video tool (only around daily-reel time)
+        run: |
+          if python3 newsbot/bot.py --needs-video; then
+            pip install --quiet imageio-ffmpeg || echo "video tool install failed - reel will retry"
+          fi
 
       - name: Run bot
         env:
@@ -51,11 +57,13 @@ jobs:
         run: python3 newsbot/bot.py
 
       - name: Upload card previews (DRY_RUN only)
-        if: ${{ vars.DRY_RUN == 'true' && hashFiles('previews/*.jpg') != '' }}
+        if: ${{ vars.DRY_RUN == 'true' && (hashFiles('previews/*.jpg') != '' || hashFiles('previews/*.mp4') != '') }}
         uses: actions/upload-artifact@v4
         with:
           name: card-previews
-          path: previews/*.jpg
+          path: |
+            previews/*.jpg
+            previews/*.mp4
           retention-days: 3
 
       - name: Save state (one overwritten commit on the "state" branch)

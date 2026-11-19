@@ -492,3 +492,40 @@ CALENDAR_MAX_LINES = 8
 DAILY_REPORT = True
 DAILY_REPORT_TIMEZONE = "America/New_York"
 DAILY_REPORT_AT = "21:00"
+
+# ===========================================================================
+# 10. RECAPS & GROWTH (update 8)
+# ===========================================================================
+# --- 🎬 Daily reel: top stories of the day as a short video with music -------------
+REEL_ENABLED = True
+REEL_PLATFORMS = ["Instagram", "Facebook", "Telegram"]   # Instagram Reels, Facebook Reels, Telegram channel video
+REEL_AT = "18:30"                 # local time (DIGEST_TIMEZONE), after the US close
+REEL_STORIES = 5
+REEL_INTRO_SECONDS = 2.8
+REEL_STORY_SECONDS = 3.8
+REEL_OUTRO_SECONDS = 3.2
+REEL_FADE_SECONDS = 0.5
+REEL_MUSIC_VOLUME = 0.9           # original tracks in newsbot/assets/music (rotate daily). Add your own .mp3/.m4a there.
+REEL_MAX_ATTEMPTS = 3
+REEL_HASHTAGS = ["#Markets", "#StockMarket", "#News", "#Finance", "#Economy"]
+
+# --- 📅 Weekly recap: "The Week In Markets" carousel every Sunday -----------------
+WEEKLY_ENABLED = True
+WEEKLY_AT = "11:00"               # Sunday, local time (DIGEST_TIMEZONE)
+WEEKLY_STORIES = 10
+WEEKLY_HASHTAGS = ["#Markets", "#WeekInReview", "#StockMarket", "#Geopolitics", "#Economy"]
+
+# --- 👋 One-time welcome post (pinned on Telegram; pin it yourself on Threads) ----
+WELCOME_ENABLED = True
+WELCOME_TEXT = (
+    "👋 Welcome to News Before Noise\n\n"
+    "Global markets & geopolitics headlines, as they break. Every story is confirmed by "
+    "multiple sources or comes from an official source. No noise.\n\n"
+    "🔴 Breaking news\n🔔 Market open & close\n🗓 Economic calendar & data releases\n"
+    "📈 Live price alerts\n🎬 Daily top-5 reel · 📅 Weekly recap\n\n"
+    "All our channels: https://newsbeforenoise.github.io/newsbot/\n\n"
+    "Automated headline alerts. Not financial advice."
+)
+
+# --- 👥 Follower counts in the daily report ----------------------------------------
+REPORT_FOLLOWERS = True

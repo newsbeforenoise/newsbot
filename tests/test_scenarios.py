@@ -43,7 +43,7 @@ class FakeInternet:
         if "trends" in url:
             return b"<rss><channel><item><title>yen</title></item></channel></rss>"
         titles = self.fed if url == "fed" else self.feeds.get(url, [])
-        items = "".join(f"<item><title>{t}</title><pubDate>{time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())}</pubDate></item>" for t in titles)
+        items = "".join(f"<item><title>{t}</title><pubDate>{time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime(time.time()))}</pubDate></item>" for t in titles)
         return f"<rss><channel>{items}</channel></rss>".encode()
 
     def quote(self, sym):
@@ -51,7 +51,8 @@ class FakeInternet:
         return (q[0], q[1], int(time.time())) if q else None
 
     def _platform(self, url):
-        for key, name in [("graph.facebook.com/v24.0/IGU", "Instagram"), ("graph.facebook.com", "Facebook"),
+        for key, name in [("graph.facebook.com/v24.0/IGU", "Instagram"), ("ig-api-upload", "Instagram"),
+                          ("video-upload", "Facebook"), ("graph.facebook.com", "Facebook"),
                           ("threads.net", "Threads"), ("bsky.social", "Bluesky"), ("masto.example", "Mastodon"),
                           ("discord.example", "Discord")]:
             if key in url:
@@ -79,23 +80,44 @@ class FakeInternet:
         self.calls.append((name, endpoint, {"text": text or body.get("message", ""), "media": has_media, **extra}))
         if "createSession" in url:
             return {"did": "did:plc:x", "accessJwt": "jwt"}
+        if endpoint == "video_reels" and body.get("upload_phase") == "start":
+            return {"video_id": "VID", "upload_url": "https://rupload.facebook.com/video-upload/v24.0/VID"}
         return {"id": "C1", "uri": "at://post", "result": {"message_id": 1}}
 
-    def http_post_file(self, url, fields, ff, fn, data, headers=None):
+    def http_post_file(self, url, fields, ff, fn, data, headers=None, content_type="image/jpeg"):
         name = self._platform(url)
         if name == "Telegram":
             name = "Telegram" if fields.get("chat_id") == "@NewsB4Noise" else "X-alert"
         self._maybe_fail(name)
+        if content_type == "video/mp4":
+            assert data[4:8] == b"ftyp", "not an MP4"
+            self.calls.append((name, "upload-video", {"text": fields.get("caption", "")}))
+            return {"result": {"message_id": 3}}
         assert data[:2] == b"\xff\xd8", "not a JPEG"
         self.calls.append((name, "upload-image", {"published": fields.get("published"), "text": fields.get("message", "")}))
         return {"id": "PHOTO", "post_id": "PAGE_POST", "result": {"message_id": 2}}
 
     def http_get_json(self, url, params):
+        if "getChatMemberCount" in url:
+            return {"ok": True, "result": 120}
+        if params.get("fields") == "followers_count":
+            return {"followers_count": 45}
+        if params.get("fields") == "followers_count,fan_count":
+            return {"followers_count": 12}
+        if "threads_insights" in url:
+            raise RuntimeError("HTTP 403: missing threads_manage_insights")
         if params.get("fields") == "images":
             return {"images": [{"width": 1080, "source": "https://fbcdn.example/card.jpg"}]}
         return {"status": "FINISHED", "status_code": "FINISHED"}
 
     def http_post_bytes(self, url, data, headers):
+        if "rupload.facebook.com" in url:
+            name = self._platform(url)
+            self._maybe_fail(name)
+            assert data[4:8] == b"ftyp", "not an MP4"
+            assert headers.get("file_size") == str(len(data))
+            self.calls.append((name, "upload-video", {}))
+            return {"success": True}
         self.calls.append(("Bluesky", "upload-blob", {}))
         return {"blob": {"$type": "blob"}}
 
@@ -130,6 +152,9 @@ def setup():
     bot.config.POST_SPACING_SECONDS = 0
     bot.EXTRAS_FILE, bot.STATS_FILE = d / "extras.json", d / "stats.json"
     bot.config.MARKET_BELLS, bot.config.CALENDAR_ENABLED, bot.config.DAILY_REPORT = [], False, False
+    bot.RECAP_FILE = d / "recap.json"
+    bot.config.REEL_ENABLED = bot.config.WEEKLY_ENABLED = bot.config.WELCOME_ENABLED = False
+    bot.config.REPORT_FOLLOWERS = False
     bot.fetch, prices.fetch_quote = net.fetch, net.quote
     bot.http_post, bot.http_post_file = net.http_post, net.http_post_file
     bot.http_get_json, bot.http_post_bytes = net.http_get_json, net.http_post_bytes
@@ -674,6 +699,124 @@ def s29_daily_report_in_private_chat():
     finally:
         bot.config.DAILY_REPORT = False
     return "9 PM report in your private chat: counts per platform, errors with last message, warning flags"
+
+
+# ---- update 8: daily reel, weekly recap, welcome post, follower counts ----------
+def _three_stories(net, ts):
+    put(net, NIKKEI); put(net, VOLGOGRAD)
+    net.fed.append("Federal Reserve issues FOMC statement")
+    run_at(net, ts)
+
+
+def s30_daily_reel_with_music_on_instagram_facebook_telegram():
+    net = setup()
+    bot.config.REEL_ENABLED = True
+    try:
+        run_at(net, at_et(2026, 11, 18, 17, 0))              # baseline
+        _three_stories(net, at_et(2026, 11, 18, 17, 10))
+        run_at(net, at_et(2026, 11, 18, 18, 5))               # hourly carousel goes out
+        assert not [c for c in net.calls if c[1] == "upload-video"], "reel too early"
+        run_at(net, at_et(2026, 11, 18, 18, 35))
+        ig = [c for c in net.calls if c[0] == "Instagram"]
+        assert [c[1] for c in ig] == ["media", "upload-video", "media_publish"], ig
+        assert ig[0][2]["text"].startswith("📰 Today's top 3 stories"), ig[0]
+        fb = [c[1] for c in net.calls if c[0] == "Facebook"]
+        assert fb == ["video_reels", "upload-video", "video_reels"], fb
+        tg = [c for c in net.calls if c[0] == "Telegram" and c[1] == "upload-video"]
+        assert len(tg) == 1 and "FOMC" in tg[0][2]["text"], tg
+        run_at(net, at_et(2026, 11, 18, 18, 40))
+        assert not [c for c in net.calls if c[1] == "upload-video"], "reel posted twice"
+    finally:
+        bot.config.REEL_ENABLED = False
+    return "6:30 PM: one reel (top stories + music) on Instagram Reels, Facebook Reels and Telegram; not repeated"
+
+
+def s31_reel_instagram_down_retried_only_there():
+    net = setup()
+    bot.config.REEL_ENABLED = True
+    try:
+        run_at(net, at_et(2026, 11, 18, 17, 0))
+        _three_stories(net, at_et(2026, 11, 18, 17, 10))
+        run_at(net, at_et(2026, 11, 18, 18, 5))
+        net.fail = {"Instagram"}
+        run_at(net, at_et(2026, 11, 18, 18, 35))
+        assert len([c for c in net.calls if c[0] == "Facebook" and c[1] == "upload-video"]) == 1
+        net.fail = set()
+        run_at(net, at_et(2026, 11, 18, 18, 40))
+        assert [c[1] for c in net.calls if c[0] == "Instagram"] == ["media", "upload-video", "media_publish"]
+        assert not [c for c in net.calls if c[0] in ("Facebook", "Telegram") and c[1] == "upload-video"]
+    finally:
+        bot.config.REEL_ENABLED = False
+    return "Instagram down at reel time: retried next run; Facebook/Telegram not duplicated"
+
+
+def s32_quiet_day_no_reel():
+    net = setup()
+    bot.config.REEL_ENABLED = True
+    try:
+        run_at(net, at_et(2026, 11, 18, 17, 0))
+        put(net, NIKKEI)
+        run_at(net, at_et(2026, 11, 18, 17, 10))
+        run_at(net, at_et(2026, 11, 18, 18, 35))
+        assert not [c for c in net.calls if c[1] == "upload-video"]
+    finally:
+        bot.config.REEL_ENABLED = False
+    return "fewer than 3 stories in the day: no reel"
+
+
+def s33_weekly_recap_sunday():
+    net = setup()
+    bot.config.WEEKLY_ENABLED = True
+    try:
+        run_at(net, at_et(2026, 11, 17, 9, 0))
+        put(net, NIKKEI); run_at(net, at_et(2026, 11, 17, 9, 10))
+        put(net, VOLGOGRAD); run_at(net, at_et(2026, 11, 19, 9, 10))
+        net.fed.append("Federal Reserve issues FOMC statement"); run_at(net, at_et(2026, 11, 20, 14, 0))
+        net.feeds = {o: [] for o in OWNERS}; net.fed = []          # old headlines have left the feeds
+        run_at(net, at_et(2026, 11, 22, 11, 5))                    # Sunday
+        fb = [c for c in net.calls if c[0] == "Facebook" and c[1] == "feed"]
+        assert len(fb) == 1 and fb[0][2]["text"].startswith("📅 The Week In Markets (16 Nov–22 Nov)"), net.calls
+        ig = [c for c in net.calls if c[0] == "Instagram"]
+        assert sum(1 for c in ig if c[2].get("is_carousel_item")) == 3, ig      # 3 cards
+        assert [c[1] for c in ig].count("media_publish") == 1, ig               # one carousel
+        th = [c[2]["text"] for c in net.posts("Threads")]
+        assert len(th) == 1 and th[0].startswith("📅 The Week In Markets") and "1. " in th[0] and len(th[0]) <= 500
+        run_at(net, at_et(2026, 11, 22, 11, 10))
+        assert not net.posts("Threads"), "weekly posted twice"
+    finally:
+        bot.config.WEEKLY_ENABLED = False
+    return "Sunday 11 AM: 'The Week In Markets' carousel on Facebook + Instagram, list on Threads/Telegram"
+
+
+def s34_welcome_post_once_and_pinned():
+    net = setup()
+    bot.config.WELCOME_ENABLED = True
+    try:
+        run(net)
+        run(net)
+        tg = [c[2]["text"] for c in net.posts("Telegram")]
+        assert len(tg) == 1 and tg[0].startswith("👋 Welcome to News Before Noise"), tg
+        assert len(net.posts("Threads")) == 1
+        assert any(c[1] == "pinChatMessage" for c in net.calls), "not pinned"
+        run(net)
+        assert not net.posts("Telegram"), "welcome repeated"
+    finally:
+        bot.config.WELCOME_ENABLED = False
+    return "welcome post once on Telegram (pinned) and Threads; never repeated"
+
+
+def s35_followers_in_daily_report():
+    net = setup()
+    bot.config.DAILY_REPORT = bot.config.REPORT_FOLLOWERS = True
+    try:
+        run_at(net, at_et(2026, 11, 18, 20, 0))
+        put(net, NIKKEI); run_at(net, at_et(2026, 11, 18, 20, 30))
+        run_at(net, at_et(2026, 11, 18, 21, 5))
+        r = [c[2]["text"] for c in net.posts("X-alert") if c[2]["text"].startswith("📊")][0]
+        assert "👥 Followers: Telegram 120 | Instagram 45 | Facebook 12 | Threads n/a" in r, r
+    finally:
+        bot.config.DAILY_REPORT = bot.config.REPORT_FOLLOWERS = False
+    return "daily report shows followers per platform (Threads 'n/a' until insights permission is added)"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]

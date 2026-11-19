@@ -212,3 +212,19 @@ Skip any platform by simply not adding its secrets. The run log shows `Auto-post
 | 🔗 Links page | One page with all your channels for every bio: https://newsbeforenoise.github.io/newsbot/ | GitHub Pages (`docs/`) | — |
 
 Facebook and Instagram keep only the hourly carousel; the market and calendar posts go to the live text platforms.
+
+## Update 8: recaps & growth
+
+| Feature | When | Where | Turn off in `config.py` |
+|---|---|---|---|
+| 🎬 Daily reel: top 5 stories as a ~22 s 9:16 video with music | 6:30 PM ET | Instagram Reels, Facebook Reels, Telegram | `REEL_ENABLED = False` |
+| 📅 The Week In Markets: 10-card carousel | Sunday 11 AM ET | Facebook + Instagram (list on Threads/Telegram) | `WEEKLY_ENABLED = False` |
+| 👋 Welcome post (pinned on Telegram) | Once | Telegram, Threads (pin it in the app) | `WELCOME_ENABLED = False` |
+| 👥 Followers in the daily report | 9 PM ET | Private Telegram chat | `REPORT_FOLLOWERS = False` |
+
+Music: three original tracks in `newsbot/assets/music/` (made by `compose.py`, no third-party audio,
+so no copyright claims). One is used per day in rotation. Drop your own royalty-free `.mp3`/`.m4a` files
+in that folder to add them to the rotation.
+
+The video tool (ffmpeg, via the `imageio-ffmpeg` pip package) is installed only on runs around reel time.
+Threads follower counts need the `threads_manage_insights` permission; until then the report shows "n/a".
