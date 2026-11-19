@@ -593,7 +593,8 @@ def _per_story_caps(st3, st2):
     saved = list(bot.STATS.get("fails", []))
     bot.STATS["fails"] = [{"ts": NOW - 3600, "platform": "Threads", "error": "HTTP 400 ... 2207051 ..."}]
     assert not bot.platform_wants("Threads", st3, [], NOW)            # cooldown after a block
-    assert bot.platform_wants("Threads", st3, [], NOW + 6 * 3600)     # ...ends after 6 hours
+    assert not bot.platform_wants("Threads", st3, [], NOW + 6 * 3600)  # update 13.4: still quiet after 6 h...
+    assert bot.platform_wants("Threads", st3, [], NOW + bot.config.THREADS_COOLDOWN_HOURS * 3600)  # ...ends after 24 h
     bot.STATS["fails"] = saved
     full = [{"ts": NOW - 60, "platforms": ["Instagram"]}] * bot.config.IMAGE_DAILY_LIMITS["Instagram"]
     assert not bot.platform_wants("Instagram", st3, full, NOW)

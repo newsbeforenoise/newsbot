@@ -550,7 +550,7 @@ REPORT_FOLLOWERS = True
 THREADS_MAX_PER_HOUR = 3          # update 11: was 6 - bursts of 4 in one minute got the account blocked
 THREADS_MIN_GAP_MINUTES = 15      # never two Threads posts closer than this
 THREADS_DAILY_MAX = 25            # hard cap per 24 hours
-THREADS_COOLDOWN_HOURS = 6        # after a "restricted activity" block, stay quiet this long (retrying extends it)
+THREADS_COOLDOWN_HOURS = 24       # update 13.4: was 6 - after a "restricted activity" block, stay quiet a full day (retrying extends it)
 THREADS_MIN_PRIORITY = 3          # 3 = markets/official/price alerts (+ anything BREAKING); 2 = also geopolitics
 
 # --- 🧾 Daily evening recap (update 10) ----------------------------------------------

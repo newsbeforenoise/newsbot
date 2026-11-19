@@ -902,7 +902,8 @@ def build_digest(items: list[dict], minutes: int | None = None, end_ts: float | 
     caption = head + "\n\n" + ("\n".join(lines) + "\n\n" if len(items) > 1 else "") + " ".join(tags)
     caption += ("\n\nSwipe for every headline ➡️" if len(slides) > 1 else "")
     caption += "\nAutomated headline alerts. Not financial advice."
-    return {"slides": slides, "caption": caption[:2150], "window": window, "count": len(items),
+    slide_keys = ([f"cover|{window}"] if cover else []) + [headline_key(q["headline"]) for q in picked]
+    return {"slides": slides, "slide_keys": slide_keys, "caption": caption[:2150], "window": window, "count": len(items),
             "picked": picked, "head": head, "tags": tags}
 
 
@@ -936,15 +937,30 @@ def fb_photo(data: bytes, published: bool, message: str = "") -> tuple[str, str,
     return pid, url, r.get("post_id", "")
 
 
-def _host_slides(dg: dict) -> list[str]:
-    """Public URLs of all slides (uploaded to the Page unpublished) - reused by Instagram."""
-    if not dg.get("urls"):
-        ids, urls = [], []
-        for data in dg["slides"]:
-            pid, url, _ = fb_photo(data, published=False)
-            ids.append(pid)
-            urls.append(url)
-        dg["photo_ids"], dg["urls"] = ids, urls
+CARD_CACHE: dict = {}   # headline key -> {"url", "photo_id", "used_fb", "ts"}; saved in digest.json
+
+
+def _host_slides(dg: dict, need_ids: bool = False) -> list[str]:
+    """Public URLs of all slides (uploaded to the Page unpublished). Each card is uploaded ONCE:
+    Instagram and Threads reuse the URL Facebook already has (update 13.4 - halves the API calls
+    that trigger 'Application request limit reached'). need_ids=True (Facebook's own multi-photo
+    post) needs photos not yet attached to another Facebook post."""
+    if dg.get("urls") and (not need_ids or dg.get("photo_ids")):
+        return dg["urls"]
+    keys = dg.get("slide_keys") or [None] * len(dg["slides"])
+    ids, urls = [], []
+    for data, key in zip(dg["slides"], keys):
+        hit = CARD_CACHE.get(key) if key else None
+        if hit and hit.get("url") and not (need_ids and hit.get("used_fb")):
+            ids.append(hit.get("photo_id", ""))
+            urls.append(hit["url"])
+            continue
+        pid, url, _ = fb_photo(data, published=False)
+        ids.append(pid)
+        urls.append(url)
+        if key and url:
+            CARD_CACHE[key] = {"url": url, "photo_id": pid, "used_fb": False, "ts": time.time()}
+    dg["photo_ids"], dg["urls"] = ids, urls
     return dg["urls"]
 
 
@@ -953,11 +969,15 @@ def post_facebook_digest(dg: dict) -> str:
         pid, url, post_id = fb_photo(dg["slides"][0], published=True, message=dg["caption"])
         dg.setdefault("urls", [url])
         return post_id or pid
-    _host_slides(dg)
+    _host_slides(dg, need_ids=True)
     params = {"message": dg["caption"], "access_token": env("FB_PAGE_TOKEN")}
     for i, pid in enumerate(dg["photo_ids"]):
         params[f"attached_media[{i}]"] = json.dumps({"media_fbid": pid})
-    return http_post(graph(f"{env('FB_PAGE_ID')}/feed"), params).get("id", "")
+    pid = http_post(graph(f"{env('FB_PAGE_ID')}/feed"), params).get("id", "")
+    for key in dg.get("slide_keys") or []:
+        if key in CARD_CACHE:
+            CARD_CACHE[key]["used_fb"] = True         # attached now; a later FB post needs a fresh upload
+    return pid
 
 
 def _ig_wait(container: str, token: str) -> None:
@@ -986,8 +1006,8 @@ def post_instagram_digest(dg: dict) -> str:
     else:
         children = [http_post(graph(f"{ig}/media"), {"image_url": u, "is_carousel_item": "true",
                                                      "access_token": token})["id"] for u in urls]
-        for c in children:          # created together, so they process in parallel
-            _ig_wait(c, token)
+        time.sleep(10)              # images process in a few seconds; checking each child costs calls
+        _ig_wait(children[-1], token)
         container = http_post(graph(f"{ig}/media"), {"media_type": "CAROUSEL", "children": ",".join(children),
                                                      "caption": dg["caption"], "access_token": token})["id"]
     _ig_wait(container, token)
@@ -1111,6 +1131,8 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
     if not platforms and not dry:
         return
     st = load(DIGEST_FILE, {"queue": [], "batch": None})
+    CARD_CACHE.clear()
+    CARD_CACHE.update({k: v for k, v in st.get("cards", {}).items() if v.get("ts", 0) > now - 3 * 3600})
     st["queue"] = [q for q in (st["queue"] + new_items)[-300:]
                    if q["ts"] >= now - config.DIGEST_MAX_AGE_HOURS * 3600]   # drop stale leftovers
     cur = hour_key(now)
@@ -1220,6 +1242,7 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
                                         if w["ts"] > now - config.DIGEST_SIMILAR_HOURS * 3600] + \
                         [{"ts": now, "words": q.get("words", [])} for q in batch["items"] if q.get("words")]
                 st["batch"] = None
+    st["cards"] = dict(CARD_CACHE)
     save(DIGEST_FILE, st)
 
 

@@ -39,7 +39,7 @@ def http_post_file(url, fields, file_field, filename, data, headers=None, conten
     if fields.get("published") == "true": live["Facebook"].insert(0, fields.get("message", ""))
     return {"id": f"ph{n[0]}", "post_id": f"pp{n[0]}"}
 bot.http_post, bot.http_get_json, bot.http_post_file = http_post, http_get_json, http_post_file
-def host(dg):
+def host(dg, need_ids=False):
     if not dg.get("urls"):
         dg["urls"] = [f"https://cdn/{i}.jpg" for i in range(len(dg["slides"]))]
         dg["photo_ids"] = [f"p{i}" for i in range(len(dg["slides"]))]
