@@ -26,6 +26,8 @@ SECRETS = {
     "DISCORD_WEBHOOK_URL": "https://discord.example/api/webhooks/1/abc",
 }
 OWNERS = ["cnbc", "bbc", "nikkei", "guardian"]
+ORIG_BELLS = list(bot.config.MARKET_BELLS)
+ORIG_SYMBOLS = list(bot.config.PRICE_SYMBOLS)
 
 
 class FakeInternet:
@@ -126,6 +128,8 @@ def setup():
     bot.config.MAX_POSTS_PER_RUN = 10
     bot.config.TRUSTED_OWNERS = []          # scenarios use cnbc/bbc/nikkei as stand-ins; s22 tests trusted
     bot.config.POST_SPACING_SECONDS = 0
+    bot.EXTRAS_FILE, bot.STATS_FILE = d / "extras.json", d / "stats.json"
+    bot.config.MARKET_BELLS, bot.config.CALENDAR_ENABLED, bot.config.DAILY_REPORT = [], False, False
     bot.fetch, prices.fetch_quote = net.fetch, net.quote
     bot.http_post, bot.http_post_file = net.http_post, net.http_post_file
     bot.http_get_json, bot.http_post_bytes = net.http_get_json, net.http_post_bytes
@@ -508,6 +512,168 @@ def s19_dry_run_digest_previews():
     slides = sorted(bot.PREVIEW_DIR.glob("digest_*.jpg"))
     assert net.calls == [] and len(slides) == 2 and "digest not posted" in out, (out, slides)
     return "DRY_RUN: hourly carousel saved as preview slides (2 headline cards), nothing posted"
+
+
+# ---- update 7: breaking label, market open/close, calendar, daily report -----
+import datetime as _dt
+_REAL_TIME = time.time
+
+
+def at_et(y, mo, d, h, mi):
+    """Unix time for a New York wall-clock time (EST in November = UTC-5)."""
+    return _dt.datetime(y, mo, d, h + 5, mi, tzinfo=_dt.timezone.utc).timestamp() if h + 5 < 24 else \
+        _dt.datetime(y, mo, d, h + 5 - 24, mi, tzinfo=_dt.timezone.utc).timestamp() + 86400
+
+
+def run_at(net, ts):
+    bot.time.time = lambda: ts
+    try:
+        return run(net)
+    finally:
+        bot.time.time = _REAL_TIME
+
+
+def s24_breaking_label_on_big_news_only():
+    net = setup()
+    run(net)
+    put(net, NIKKEI)
+    net.fed += ["Federal Reserve issues FOMC statement"]
+    run(net)
+    texts = [c[2]["text"] for c in net.posts("Threads")]
+    fomc = [t for t in texts if "FOMC" in t][0]
+    nikkei = [t for t in texts if "Nikkei" in t][0]
+    assert fomc.startswith("🔴 BREAKING: "), fomc
+    assert "BREAKING" not in nikkei, nikkei
+    # daily cap
+    old = bot.config.BREAKING_MAX_PER_DAY
+    bot.config.BREAKING_MAX_PER_DAY = 1
+    try:
+        net.fed += ["Federal Reserve announces emergency rate decision"]
+        run(net)
+        later = [c[2]["text"] for c in net.posts("Threads")]
+        assert later and not any("BREAKING" in t for t in later), later
+    finally:
+        bot.config.BREAKING_MAX_PER_DAY = old
+    return "Fed statement labelled 🔴 BREAKING, ordinary market story not; daily cap respected"
+
+
+def _bell_setup(net):
+    bot.config.MARKET_BELLS = ORIG_BELLS
+    bot.config.PRICE_SYMBOLS = ORIG_SYMBOLS
+    for sym, (p, prev) in {"^GSPC": (6810.4, 6782.0), "^IXIC": (23450, 23310), "^DJI": (47120, 47170),
+                           "^VIX": (15.2, 15.7), "DX-Y.NYB": (99.1, 99.0), "GC=F": (3750.9, 3721.0),
+                           "CL=F": (61.2, 61.9), "BTC-USD": (91000, 90100)}.items():
+        net.quotes[sym] = (p, prev)
+
+
+def s25_us_close_summary_once_per_day():
+    net = setup()
+    _bell_setup(net)
+    try:
+        run_at(net, at_et(2026, 11, 18, 15, 50))        # baseline run (Wednesday)
+        run_at(net, at_et(2026, 11, 18, 16, 6))
+        posts = [c[2]["text"] for c in net.posts("Threads")]
+        assert len(posts) == 1 and posts[0].startswith("🔔 US Stocks Close\nS&P 500 6,810 ▲ +0.42%"), posts
+        assert "Nasdaq 23,450" in posts[0] and "Dow Jones 47,120 ▼ -0.11%" in posts[0], posts[0]
+        assert "Gold $3,750.9" in posts[0], posts[0]
+        assert len(net.posts("Telegram")) == 1 and len(net.posts("X-alert")) == 1
+        assert not any(c[0] in ("Facebook", "Instagram") for c in net.calls)
+        run_at(net, at_et(2026, 11, 18, 16, 11))
+        assert not net.posts("Threads"), "close summary repeated"
+        # Saturday: nothing
+        run_at(net, at_et(2026, 11, 21, 16, 6))
+        assert not net.posts("Threads"), "posted on a weekend"
+    finally:
+        bot.config.MARKET_BELLS, bot.config.PRICE_SYMBOLS = [], ORIG_SYMBOLS
+    return "🔔 US close summary posted once at 4:05 PM (indices, VIX, dollar, gold, oil, Bitcoin); no repeat, none at weekends"
+
+
+def s26_market_holiday_no_summary():
+    net = setup()
+    _bell_setup(net)
+    stale = at_et(2026, 11, 25, 16, 0)                    # last trade the day before
+    net.quote = lambda sym: (net.quotes[sym][0], net.quotes[sym][1], int(stale)) if sym in net.quotes else None
+    prices.fetch_quote = net.quote
+    try:
+        run_at(net, at_et(2026, 11, 26, 9, 0))           # Thanksgiving
+        run_at(net, at_et(2026, 11, 26, 9, 36))
+        assert not net.posts("Threads"), net.posts("Threads")
+    finally:
+        bot.config.MARKET_BELLS, bot.config.PRICE_SYMBOLS = [], ORIG_SYMBOLS
+    return "market holiday (no fresh prices): no open summary posted"
+
+
+CAL_JSON = json.dumps([
+    {"title": "CPI y/y", "country": "USD", "date": "2026-11-18T08:30:00-05:00", "impact": "High",
+     "forecast": "2.9%", "previous": "3.0%"},
+    {"title": "Core CPI m/m", "country": "USD", "date": "2026-11-18T08:30:00-05:00", "impact": "High",
+     "forecast": "0.3%", "previous": "0.3%"},
+    {"title": "Crude Oil Inventories", "country": "USD", "date": "2026-11-18T10:30:00-05:00", "impact": "Medium",
+     "forecast": "", "previous": "1.2M"},
+    {"title": "Bank Holiday", "country": "JPY", "date": "2026-11-18T00:00:00-05:00", "impact": "Holiday"},
+    {"title": "AUD Employment Change", "country": "AUD", "date": "2026-11-18T19:30:00-05:00", "impact": "High"},
+]).encode()
+
+
+def s27_economic_calendar_morning_list_and_heads_up():
+    net = setup()
+    bot.config.CALENDAR_ENABLED = True
+    real_fetch = net.fetch
+    net.fetch = bot.fetch = lambda url, timeout=15: CAL_JSON if url == bot.config.CALENDAR_URL else real_fetch(url)
+    try:
+        run_at(net, at_et(2026, 11, 18, 6, 0))            # baseline
+        run_at(net, at_et(2026, 11, 18, 7, 5))
+        daily = [c[2]["text"] for c in net.posts("Threads")]
+        assert len(daily) == 1 and daily[0].startswith("🗓 Today's Key Data (EST)"), daily
+        assert "8:30 AM 🇺🇸 CPI y/y (F 2.9%)" in daily[0] and "Crude" not in daily[0] and "AUD" not in daily[0], daily
+        run_at(net, at_et(2026, 11, 18, 8, 10))
+        assert not net.posts("Threads"), "heads-up too early"
+        run_at(net, at_et(2026, 11, 18, 8, 15))
+        hu = [c[2]["text"] for c in net.posts("Threads")]
+        assert len(hu) == 1 and hu[0].startswith("⏰ Coming Up At 8:30 AM EST\n🇺🇸 CPI y/y – Forecast 2.9%, Previous 3.0%"), hu
+        assert "Core CPI m/m" in hu[0]
+        run_at(net, at_et(2026, 11, 18, 8, 20))
+        assert not net.posts("Threads"), "heads-up repeated"
+        run_at(net, at_et(2026, 11, 18, 7, 10))
+        assert not net.posts("Threads"), "morning list repeated"
+    finally:
+        bot.config.CALENDAR_ENABLED = False
+    return "7 AM 'Today's key data' list + one '⏰ Coming up' 15 min before CPI; no repeats, medium/other countries filtered"
+
+
+def s28_calendar_down_never_breaks_news():
+    net = setup()
+    bot.config.CALENDAR_ENABLED = True
+    try:
+        run(net)
+        put(net, NIKKEI)
+        run(net)                                            # calendar URL returns junk in the fake internet
+        assert len(net.posts("Threads")) == 1
+    finally:
+        bot.config.CALENDAR_ENABLED = False
+    return "calendar unavailable: news still posts normally"
+
+
+def s29_daily_report_in_private_chat():
+    net = setup()
+    bot.config.DAILY_REPORT = True
+    try:
+        run_at(net, at_et(2026, 11, 18, 20, 0))
+        put(net, NIKKEI)
+        net.fail = {"Mastodon"}
+        run_at(net, at_et(2026, 11, 18, 20, 30))
+        net.fail = set()
+        run_at(net, at_et(2026, 11, 18, 21, 5))
+        msgs = [c[2]["text"] for c in net.posts("X-alert") if c[2]["text"].startswith("📊")]
+        assert len(msgs) == 1, net.calls
+        r = msgs[0]
+        assert "Headlines: 1" in r and "Threads 1" in r and "Mastodon 0" in r, r
+        assert "Errors: Mastodon 1" in r and "⚠️ Check: Mastodon posted nothing" in r, r
+        run_at(net, at_et(2026, 11, 18, 21, 10))
+        assert not [c for c in net.posts("X-alert") if c[2]["text"].startswith("📊")], "report sent twice"
+    finally:
+        bot.config.DAILY_REPORT = False
+    return "9 PM report in your private chat: counts per platform, errors with last message, warning flags"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]

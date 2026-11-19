@@ -110,7 +110,8 @@ def check_symbol(cfg: dict, price: float, prev: float, mtime: int, st: dict, now
         "tags": tags + [config.MARKET_TAG], "priority": 3,
         "focus": cfg.get("flag") in ("🇺🇸", "🇮🇳"), "words": [], "sources": ["Market Data"],
         "credit": [], "item_ids": [], "story_id": f'price:{cfg["symbol"]}:{int(now)}',
-        "followup": False, "is_price": True,
+        "followup": False, "is_price": True, "symbol": cfg["symbol"],
+        "move_pct": abs(chg) if hit else 0,
     }
 
 
@@ -125,7 +126,9 @@ def price_alerts(state: dict, now: float | None = None) -> list[dict]:
     for cfg, q in zip(config.PRICE_SYMBOLS, quotes):
         if not q:
             continue
-        a = check_symbol(cfg, *q, state.setdefault(cfg["symbol"], {}), now)
+        st = state.setdefault(cfg["symbol"], {})
+        a = check_symbol(cfg, *q, st, now)
+        st["q"] = [q[0], q[1], q[2]]          # latest quote, used by the market open/close posts
         if a:
             alerts.append(a)
     return alerts

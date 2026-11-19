@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>News Before Noise (@NewsB4Noise)</title>
+<meta name="description" content="Global markets and geopolitics headlines, as they break. Follow News Before Noise on Telegram, Threads, X, Instagram and Facebook.">
+<meta property="og:title" content="News Before Noise">
+<meta property="og:description" content="Global markets and geopolitics headlines, as they break.">
+<meta property="og:image" content="logo.jpg">
+<link rel="icon" href="logo.jpg">
+<style>
+  :root { --bg:#000; --card:#111; --line:#262626; --text:#fff; --muted:#9a9a9a; --accent:#ffc400; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         display:flex; justify-content:center; padding:48px 20px 64px; }
+  main { width:100%; max-width:440px; text-align:center; }
+  img.logo { width:112px; height:112px; border-radius:50%; border:2px solid var(--line); }
+  h1 { font-size:26px; margin:18px 0 4px; letter-spacing:-0.3px; }
+  .handle { color:var(--muted); margin:0 0 14px; font-size:15px; }
+  .bio { color:#d6d6d6; font-size:15px; line-height:1.5; margin:0 auto 28px; max-width:360px; }
+  a.link { display:flex; align-items:center; gap:14px; text-decoration:none; color:var(--text);
+           background:var(--card); border:1px solid var(--line); border-radius:14px;
+           padding:15px 18px; margin:0 0 12px; font-weight:600; font-size:16px;
+           transition:border-color .15s, transform .15s; }
+  a.link:hover, a.link:focus-visible { border-color:var(--accent); transform:translateY(-1px); outline:none; }
+  a.link .icon { width:30px; text-align:center; font-size:20px; }
+  a.link .what { margin-left:auto; color:var(--muted); font-weight:400; font-size:13px; }
+  .live { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ff3b3b;
+          margin-right:6px; vertical-align:middle; animation:pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity:.3; } }
+  footer { color:var(--muted); font-size:12px; margin-top:28px; line-height:1.6; }
+  footer a { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="logo.jpg" alt="News Before Noise logo">
+  <h1>News Before Noise</h1>
+  <p class="handle">@NewsB4Noise</p>
+  <p class="bio"><span class="live"></span>Global markets &amp; geopolitics headlines, as they break.
+     Confirmed by multiple sources. No noise.</p>
+
+  <a class="link" href="https://t.me/NewsB4Noise"><span class="icon">✈️</span>Telegram<span class="what">fastest · every headline</span></a>
+  <a class="link" href="https://www.threads.com/@newsbeforenoise"><span class="icon">🧵</span>Threads<span class="what">every headline</span></a>
+  <a class="link" href="https://x.com/newsB4noise"><span class="icon">𝕏</span>X<span class="what">top stories</span></a>
+  <a class="link" href="https://www.instagram.com/newsbeforenoise"><span class="icon">📸</span>Instagram<span class="what">hourly recap</span></a>
+  <a class="link" href="https://www.facebook.com/profile.php?id=61596452861477"><span class="icon">📘</span>Facebook<span class="what">hourly recap</span></a>
+
+  <footer>
+    Automated headline alerts. Not financial advice.<br>
+    <a href="https://github.com/newsbeforenoise/newsbot/blob/main/PRIVACY.md">Privacy</a>
+  </footer>
+</main>
+</body>
+</html>

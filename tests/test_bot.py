@@ -792,6 +792,41 @@ def test_feed_parsing_rss_and_atom():
     assert bot.parse_feed(atom)[0]["link"] == "http://y"
     assert bot.parse_feed(atom)[0]["published"] is not None
 
+# ---- update 7 extras
+import extras  # noqa: E402
+
+def test_breaking_big_index_move_only():
+    big = {"is_price": True, "symbol": "^GSPC", "move_pct": 2.3, "priority": 3}
+    small = {"is_price": True, "symbol": "^GSPC", "move_pct": 1.2, "priority": 3}
+    btc = {"is_price": True, "symbol": "BTC-USD", "move_pct": 6, "priority": 3}
+    assert extras.is_breaking(big, "", [], NOW)
+    assert not extras.is_breaking(small, "", [], NOW) and not extras.is_breaking(btc, "", [], NOW)
+
+def test_breaking_keywords_and_cap():
+    s = {"priority": 2, "text": "Israel and Hamas agree ceasefire"}
+    assert extras.is_breaking(s, s["text"], [], NOW)
+    assert not extras.is_breaking({**s, "followup": True}, s["text"], [], NOW)
+    assert not extras.is_breaking({"priority": 3, "text": "Apple shares rise 1%"}, "Apple shares rise 1%", [], NOW)
+    full = [{"ts": NOW - 60, "breaking": True}] * bot.config.BREAKING_MAX_PER_DAY
+    assert not extras.is_breaking(s, s["text"], full, NOW)
+
+def test_breaking_label_in_text():
+    st = {"text": "Fed cuts rates by 25 bps", "flags": "🇺🇸", "tags": [], "credit": [], "breaking": True}
+    assert bot.build_posts(st)["plain"].startswith("🔴 BREAKING: 🇺🇸 Fed Cuts Rates")
+
+def test_calendar_parser_tolerates_junk():
+    assert extras.parse_calendar(b"<html>blocked</html>") == []
+    assert extras.parse_calendar(b'{"error": 1}') == []
+    assert extras.parse_calendar(b'[{"title": "X", "country": "USD", "impact": "High", "date": "bad"}]') == []
+    ev = extras.parse_calendar(b'[{"title": "Non-Farm  Employment Change", "country": "USD", "impact": "High", '
+                               b'"date": "2026-12-04T08:30:00-05:00", "forecast": "50K", "previous": "119K"}]')
+    assert ev[0]["title"] == "Non-Farm Employment Change" and ev[0]["timed"] and ev[0]["flag"] == "🇺🇸"
+
+def test_bell_line_format():
+    assert extras.bell_line("^NSEI", [26050.3, 25900.0, 0]) == "Nifty 50 26,050 ▲ +0.58%"
+    assert extras.bell_line("INR=X", [88.5, 88.6, 0]) == "USD/INR 88.50 ▼ -0.11%"
+    assert extras.bell_line("NOPE", [1, 1, 0]) is None
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in list(globals().items()):

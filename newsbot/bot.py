@@ -42,6 +42,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config  # noqa: E402
+import extras  # noqa: E402
 import images  # noqa: E402
 import prices  # noqa: E402
 
@@ -52,6 +53,8 @@ POSTED_FILE = STATE_DIR / "posted.json"
 PRICES_FILE = STATE_DIR / "prices.json"
 PREVIEW_DIR = ROOT / "previews"
 DIGEST_FILE = STATE_DIR / "digest.json"
+EXTRAS_FILE = STATE_DIR / "extras.json"     # market bells / calendar bookkeeping
+STATS_FILE = STATE_DIR / "stats.json"       # errors & carousels for the daily report
 
 USER_AGENT = "Mozilla/5.0 (compatible; NewsHeadlineBot/1.0)"
 ATOM = "{http://www.w3.org/2005/Atom}"
@@ -464,6 +467,8 @@ def find_stories(items: dict, posted: list, now: float, trends: list[str] | None
             "item_ids": [g["id"] for g in group],
             "story_id": story_id,
             "followup": bool(followup_of),
+            "official": bool(official),
+            "all_text": all_text,
         })
     # tier 1 first, then tier 2, then tier 3; US/India first within a tier
     stories.sort(key=lambda s: (s["priority"], s["focus"]), reverse=True)
@@ -932,7 +937,9 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
                     print(f"    ✓ {name} carousel {pid}")
                 except Exception as e:  # noqa: BLE001
                     print(f"    ! {name} digest failed (attempt {batch['attempts']}): {e}")
+                    record_fail(name, e, now)
             if set(platforms) <= set(batch["done"]) or batch["attempts"] >= config.DIGEST_MAX_ATTEMPTS:
+                STATS.setdefault("digests", []).append({"ts": now, "done": list(batch["done"])})
                 st["batch"] = None
     save(DIGEST_FILE, st)
 
@@ -979,6 +986,127 @@ def health_check(feeds_ok: int, now: float) -> None:
             print(f"  ! health alert failed: {e}")
 
 
+# --- Error log + daily health report (private Telegram) -----------------------
+STATS: dict = {}
+
+
+def record_fail(platform: str, err: Exception, now: float) -> None:
+    STATS.setdefault("fails", []).append({"ts": now, "platform": platform, "error": str(err)[:200]})
+
+
+def save_stats(now: float) -> None:
+    for key in ("fails", "digests"):
+        STATS[key] = [x for x in STATS.get(key, []) if x["ts"] > now - 2 * 86400][-500:]
+    save(STATS_FILE, STATS)
+
+
+def send_private(text: str) -> None:
+    token, chat = env("TELEGRAM_BOT_TOKEN"), env("TELEGRAM_CHAT_ID")
+    if token and chat:
+        http_post(f"https://api.telegram.org/bot{token}/sendMessage",
+                  {"chat_id": chat, "text": text, "disable_web_page_preview": "true"})
+
+
+def send_daily_report(now: float, dry: bool, posted: list) -> None:
+    day = extras.report_due(STATS, now)
+    if not day:
+        return
+    text = extras.build_report(posted, STATS, enabled_platforms(), digest_platforms(), now)
+    print("\n=== Daily report ===\n" + text)
+    if not dry:
+        send_private(text)
+    STATS["report_day"] = day
+
+
+# --- Market open/close + economic calendar posts --------------------------------
+def special_post(text: str, tags: list[str], kind: str) -> dict:
+    """A post that isn't a news headline (multi-line text, no source)."""
+    tagged = text
+    use = []
+    for t in tags[: config.MAX_HASHTAGS_X]:
+        if len(text) + 2 + len(" ".join(use + [t])) <= 280:
+            use.append(t)
+    if use:
+        tagged = f"{text}\n\n{' '.join(use)}"
+    return {"plain": text[:500], "tagged": tagged, "topic": threads_topic(tags),
+            "story": {"priority": 3, "countries": [], "kind": kind}, "headline": text, "credit_main": "",
+            "social_caption": tagged, "alt": f"{config.BRAND_NAME}: {text}",
+            "ig_caption": f"{tagged}\n\nAutomated alert. Not financial advice."}
+
+
+def publish_special(p: dict, kind: str, now: float, dry: bool, posted: list, platforms: list[str]) -> bool:
+    print(f"\n>>> [{kind}] {p['tagged']}")
+    done: list[str] = []
+    if dry:
+        print("    (DRY_RUN - not posted)")
+    else:
+        targets = [n for n in platforms if n not in IMAGE_PLATFORMS and n not in config.DIGEST_PLATFORMS]
+        for name in targets:
+            try:
+                pid = PLATFORMS[name][0](p)
+                done.append(name)
+                print(f"    ✓ {name} {pid}")
+            except Exception as e:  # noqa: BLE001
+                print(f"    ! {name} failed: {e}")
+                record_fail(name, e, now)
+        if targets and not done:
+            return False                     # all failed: try again next run
+        try:
+            notify_x_link(p, ["Market Data" if kind == "market" else "Economic Calendar"])
+        except Exception as e:  # noqa: BLE001
+            print(f"    ! X alert failed: {e}")
+    posted.append({"ts": now, "text": p["tagged"], "words": [], "sources": [], "item_ids": [],
+                   "story_id": f"{kind}:{int(now)}", "platforms": done, "kind": kind})
+    return True
+
+
+def run_extras(now: float, dry: bool, posted: list, price_state: dict, platforms: list[str], room: int) -> None:
+    st = load(EXTRAS_FILE, {"bells": {}, "cal": {}})
+    cal = st.setdefault("cal", {})
+    todo: list[tuple[dict, str, callable]] = []
+
+    for bell in extras.due_bells(price_state, st.setdefault("bells", {}), now):
+        def mark(b=bell):
+            st["bells"][b["id"]] = b["day"]
+        todo.append((special_post(bell["title"] + "\n" + "\n".join(bell["lines"]), bell["tags"], "market"),
+                     "market", mark))
+
+    if config.CALENDAR_ENABLED:
+        if now - cal.get("fetched", 0) > config.CALENDAR_REFRESH_HOURS * 3600:
+            raw = fetch(config.CALENDAR_URL)
+            events = extras.parse_calendar(raw)
+            if raw and (events or raw.strip().startswith(b"[")):
+                cal["events"] = events
+                cal["fetched"] = now
+                print(f"Economic calendar: {len(events)} key events this week")
+            else:
+                cal["fetched"] = now - config.CALENDAR_REFRESH_HOURS * 3600 + 1800   # retry in 30 min
+                print("  ! economic calendar unavailable")
+        events = [e for e in cal.get("events", []) if e["ts"] > now - 86400]
+        cal["events"] = events
+        daily = extras.daily_calendar_post(events, cal.get("daily", ""), now)
+        if daily:
+            if daily["text"]:
+                todo.append((special_post(daily["text"], daily["tags"], "calendar"), "calendar",
+                             lambda d=daily: cal.__setitem__("daily", d["day"])))
+            else:
+                cal["daily"] = daily["day"]
+        sent = cal.setdefault("sent", [])
+        for hu in extras.heads_up_posts(events, sent, now):
+            todo.append((special_post(hu["text"], hu["tags"], "calendar"), "calendar",
+                         lambda h=hu: sent.extend(h["keys"])))
+
+    for p, kind, mark in todo:
+        if room <= 0:
+            print("  daily post limit reached - skipping market/calendar posts")
+            break
+        if publish_special(p, kind, now, dry, posted, platforms):
+            mark()
+            room -= 1
+    cal["sent"] = cal.get("sent", [])[-300:]
+    save(EXTRAS_FILE, st)
+
+
 def title_case(text: str) -> str:
     """Squawk-style Title Case. Keeps acronyms (US, RBI), numbers and words like iPhone."""
     def fix(w: str) -> str:
@@ -998,6 +1126,8 @@ def build_posts(story: dict) -> dict:
     headline = title_case(story["text"]) if config.TITLE_CASE else story["text"]
     prefix = config.POST_PREFIX + (config.FOLLOWUP_PREFIX if story.get("followup") else "")
     head = f'{story["flags"]} {prefix}{headline}'.strip()
+    if story.get("breaking"):
+        head = config.BREAKING_LABEL + head
     credit = [c for c in story.get("credit", []) if c.lower() not in headline.lower()] if config.SHOW_SOURCES else []
     credit = credit[: config.MAX_SOURCES_SHOWN]
     while credit and len(head) + 3 + len(", ".join(credit)) > 250:
@@ -1031,6 +1161,8 @@ def main() -> int:
 
     items = load(ITEMS_FILE, {})
     posted = load(POSTED_FILE, [])
+    STATS.clear()
+    STATS.update(load(STATS_FILE, {}))
     first_run = not ITEMS_FILE.exists()
 
     print(f"Reading {len(config.FEEDS)} feeds...")
@@ -1092,6 +1224,7 @@ def main() -> int:
         words = set(story["words"])
         if words and not story["followup"] and any(similar(words, d) for d in done_this_run):
             continue  # same story found twice in this run
+        story["breaking"] = extras.is_breaking(story, story.get("all_text", ""), posted, now)
         p = build_posts(story)
         print(f"\n>>> {'[follow-up] ' if story['followup'] else ''}{p['tagged']}"
               f"\n    Threads topic: {p['topic']} | sources: {', '.join(story['sources'])}")
@@ -1117,6 +1250,7 @@ def main() -> int:
                     print(f"    ✓ {name} {pid}")
                 except Exception as e:  # noqa: BLE001  one platform failing never stops the others
                     print(f"    ! {name} failed: {e}")
+                    record_fail(name, e, now)
             if tried and ok == 0:
                 continue  # everything failed - try again next run (no X alert either)
             try:
@@ -1131,8 +1265,13 @@ def main() -> int:
             digest_items.append(queue_for_digest(p, story, now))
         posted.append({"ts": now, "text": p["tagged"], "words": story["words"], "sources": story["sources"],
                        "item_ids": story["item_ids"], "story_id": story["story_id"],
-                       "platforms": done_platforms})
+                       "platforms": done_platforms, "breaking": bool(story.get("breaking")),
+                       "is_price": bool(story.get("is_price"))})
 
+    try:
+        run_extras(now, dry, posted, price_state, platforms, day_left - count)
+    except Exception as e:  # noqa: BLE001  extras must never break live posting
+        print(f"  ! extras error: {e}")
     save(ITEMS_FILE, items)
     save(POSTED_FILE, posted)
     if config.DIGEST_PLATFORMS:
@@ -1140,6 +1279,12 @@ def main() -> int:
             run_digest(now, dry, digest_items)
         except Exception as e:  # noqa: BLE001  the digest must never break live posting
             print(f"  ! digest error: {e}")
+    try:
+        STATS["feeds"] = [feeds_ok, len(config.FEEDS)]
+        send_daily_report(now, dry, posted)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ! daily report error: {e}")
+    save_stats(now)
     return 0
 
 

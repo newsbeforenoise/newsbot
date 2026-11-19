@@ -200,3 +200,15 @@ Skip any platform by simply not adding its secrets. The run log shows `Auto-post
   (usually `config.py`) broke something; undo it. Locally: `python3 tests/test_bot.py` and
   `python3 tests/test_scenarios.py` (19 end-to-end scenarios: full news cycle, hourly carousel, follow-ups,
   platform outages and retries, caps, dry run, kill switch…).
+
+## Update 7 extras (all automatic, all free)
+
+| Feature | What it posts | Where | Turn off in `config.py` |
+|---|---|---|---|
+| 🔴 BREAKING label | Prefix on the biggest stories (central-bank decisions, wars, ceasefires, ±2% index moves), max 10/day | All text platforms | `BREAKING_ENABLED = False` |
+| 🔔 Market open/close | US open 9:35 AM ET, US close 4:05 PM ET, India open 9:20 AM IST, India close 3:35 PM IST. Skipped on holidays | All text platforms + X link | `MARKET_BELLS = []` |
+| 🗓 Economic calendar | "Today's key data" at 7 AM ET on weekdays + "⏰ Coming up" ~15 min before each high-impact release (US, EU, UK, Japan, China) | All text platforms + X link | `CALENDAR_ENABLED = False` |
+| 📊 Daily report | Posts per platform, errors, carousels, feeds working, at 9 PM ET | Your private Telegram chat only | `DAILY_REPORT = False` |
+| 🔗 Links page | One page with all your channels for every bio: https://newsbeforenoise.github.io/newsbot/ | GitHub Pages (`docs/`) | — |
+
+Facebook and Instagram keep only the hourly carousel; the market and calendar posts go to the live text platforms.

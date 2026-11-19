@@ -436,3 +436,59 @@ index indices futures bond bonds yield yields deal deals plan plans cut cuts hik
 government official officials minister company companies firm firms bank banks billion million trillion
 week month quarter year annual data report reports news sector sectors demand supply cost costs
 """.split()
+
+# ===========================================================================
+# 9. EXTRAS (update 7)
+# ===========================================================================
+# --- 🔴 BREAKING label for the biggest stories --------------------------------
+BREAKING_ENABLED = True
+BREAKING_LABEL = "🔴 BREAKING: "
+BREAKING_MAX_PER_DAY = 10        # keep it rare so it still means something
+BREAKING_OFFICIAL = True         # official central-bank / statistics releases count as breaking
+BREAKING_PRICE_PCT = 2           # index moves of this % or more on the day
+BREAKING_PRICE_SYMBOLS = ["^GSPC", "^IXIC", "^DJI", "^NSEI", "^BSESN", "^N225", "^HSI", "^GDAXI", "^FTSE"]
+BREAKING_KEYWORDS = [
+    "cuts rates", "cuts interest rate", "raises rates", "raises interest rate", "hikes rates",
+    "hikes interest rate", "holds rates", "keeps rates", "leaves rates", "rate decision", "emergency rate",
+    "emergency meeting", "declares war", "invades", "invasion", "missile strike", "missile attack",
+    "airstrike", "air strike", "ceasefire", "coup", "assassinat", "martial law", "state of emergency",
+    "nuclear test", "resigns", "impeach", "defaults on", "circuit breaker", "trading halted",
+]
+
+# --- 🔔 Market open / close summaries ------------------------------------------
+# Posted once per trading day, a few minutes after the bell, using the live prices
+# the bot already reads. Skipped automatically on holidays (no fresh prices).
+#   at    = local time to post (posts any time in the next 60 minutes if a run is late)
+#   fresh = prices must be newer than this local time (proves the market traded today)
+MARKET_BELLS = [
+    {"id": "us_open",  "title": "🔔 US Stocks Open",  "tz": "America/New_York", "at": "09:35", "fresh": "09:30",
+     "symbols": ["^GSPC", "^IXIC", "^DJI", "^VIX"], "tags": ["#StockMarket", "#SPX"]},
+    {"id": "us_close", "title": "🔔 US Stocks Close", "tz": "America/New_York", "at": "16:05", "fresh": "15:55",
+     "symbols": ["^GSPC", "^IXIC", "^DJI", "^VIX", "DX-Y.NYB", "GC=F", "CL=F", "BTC-USD"],
+     "tags": ["#StockMarket", "#SPX"]},
+    {"id": "in_open",  "title": "🔔 India Stocks Open",  "tz": "Asia/Kolkata", "at": "09:20", "fresh": "09:15",
+     "symbols": ["^NSEI", "^BSESN", "INR=X"], "tags": ["#Nifty", "#Sensex"]},
+    {"id": "in_close", "title": "🔔 India Stocks Close", "tz": "Asia/Kolkata", "at": "15:35", "fresh": "15:25",
+     "symbols": ["^NSEI", "^BSESN", "INR=X"], "tags": ["#Nifty", "#Sensex"]},
+]
+BELL_WINDOW_MINUTES = 60
+
+# --- 🗓 Economic calendar ---------------------------------------------------------
+# Free weekly calendar (Forex Factory's public JSON). The bot posts:
+#   * a "Today's key data" list each weekday morning, and
+#   * a "Coming up" heads-up shortly before each high-impact release.
+# The actual numbers then arrive through the normal news feeds (BLS, Fed, etc.).
+CALENDAR_ENABLED = True
+CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+CALENDAR_REFRESH_HOURS = 4       # the file updates hourly; don't hammer it
+CALENDAR_IMPACT = ["High"]       # add "Medium" for more events
+CALENDAR_COUNTRIES = {"USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧", "JPY": "🇯🇵", "CNY": "🇨🇳"}
+CALENDAR_HEADS_UP_MINUTES = 15   # "Coming up" about this many minutes before (posted 5-17 min ahead)
+CALENDAR_TIMEZONE = "America/New_York"
+CALENDAR_DAILY_AT = "07:00"      # "Today's key data" post (weekdays, local time above)
+CALENDAR_MAX_LINES = 8
+
+# --- 📊 Daily health report (private Telegram chat) ------------------------------
+DAILY_REPORT = True
+DAILY_REPORT_TIMEZONE = "America/New_York"
+DAILY_REPORT_AT = "21:00"
