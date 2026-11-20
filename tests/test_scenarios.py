@@ -151,6 +151,7 @@ def setup():
     bot.config.DIGEST_PLATFORMS = ["Facebook", "Instagram"]   # scenarios use Threads to check per-headline posting;
     bot.config.DIGEST_WINDOW_MINUTES = 60                        # the 30-min Threads roundup is in tests/check_update13.py
     bot.config.TRUSTED_OWNERS = []          # scenarios use cnbc/bbc/nikkei as stand-ins; s22 tests trusted
+    bot.config.QUIET_ALARM = False          # alarms have their own checks (tests/check_update15.py)
     bot.config.POST_SPACING_SECONDS = 0
     bot.EXTRAS_FILE, bot.STATS_FILE = d / "extras.json", d / "stats.json"
     bot.config.MARKET_BELLS, bot.config.CALENDAR_ENABLED, bot.config.DAILY_REPORT = [], False, False

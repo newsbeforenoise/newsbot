@@ -674,9 +674,17 @@ def sent_but_unconfirmed(err: Exception) -> bool:
     return isinstance(err, TimeoutError) or "timed out" in str(err).lower()
 
 
+def telegram_silent(p: dict) -> bool:
+    """Only 🔴 BREAKING and market open/close bells make a sound."""
+    st = p.get("story") or {}
+    loud = st.get("breaking") or st.get("kind") == "market" or p.get("tagged", "").startswith(config.BREAKING_LABEL)
+    return bool(getattr(config, "TELEGRAM_SILENT", False) and not loud)
+
+
 def post_telegram_channel(p: dict) -> str:
     api = f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}"
     chat = env("TELEGRAM_CHANNEL_ID")
+    quiet = {"disable_notification": "true"} if telegram_silent(p) else {}
 
     def guarded(send) -> str:
         try:
@@ -688,12 +696,13 @@ def post_telegram_channel(p: dict) -> str:
             raise
 
     def card() -> str:
-        r = http_post_file(f"{api}/sendPhoto", {"chat_id": chat, "caption": p["tagged"][:1024]},
+        r = http_post_file(f"{api}/sendPhoto", {"chat_id": chat, "caption": p["tagged"][:1024], **quiet},
                            "photo", "card.jpg", card_image(p))
         return str(r.get("result", {}).get("message_id", ""))
 
     def text() -> str:
-        r = http_post(f"{api}/sendMessage", {"chat_id": chat, "text": p["tagged"], "disable_web_page_preview": "true"})
+        r = http_post(f"{api}/sendMessage", {"chat_id": chat, "text": p["tagged"], "disable_web_page_preview": "true",
+                                             **quiet})
         return str(r.get("result", {}).get("message_id", ""))
 
     return with_card("Telegram", p, lambda: guarded(card), lambda: guarded(text))
@@ -1388,14 +1397,6 @@ def is_report_sunday(now: float) -> bool:
     return datetime.fromtimestamp(now, _zone(config.DAILY_REPORT_TIMEZONE)).weekday() == 6
 
 
-def _zone(name: str):
-    try:
-        from zoneinfo import ZoneInfo
-        return ZoneInfo(name)
-    except Exception:  # noqa: BLE001
-        return timezone.utc
-
-
 def weekly_report(day: str) -> str:
     """7-day growth summary: followers now vs a week ago, posts and errors per platform."""
     hist = STATS.get("history", {})
@@ -1428,6 +1429,49 @@ def weekly_report(day: str) -> str:
     grew = [k for k, v in fol_now.items() if isinstance(v, int) and isinstance(fol_then.get(k), int) and v > fol_then[k]]
     lines.append("🏆 Growing: " + (", ".join(grew) if grew else "no platform grew this week"))
     return "\n".join(lines)
+
+
+MARKET_HOURS = [("America/New_York", "09:30", "16:00"), ("Asia/Kolkata", "09:15", "15:30")]
+
+
+def market_open(now: float) -> bool:
+    for tzname, a, b in MARKET_HOURS:
+        local = datetime.fromtimestamp(now, _zone(tzname))
+        if local.weekday() < 5 and a <= local.strftime("%H:%M") < b:
+            return True
+    return False
+
+
+def alarms_due(now: float, posted: list) -> list[tuple[str, str]]:
+    """[(key, message)] of problems worth a private Telegram alert right now."""
+    out = []
+    last = max((p["ts"] for p in posted), default=0)
+    quiet_min = config.QUIET_ALARM_MINUTES
+    if market_open(now) and last and now - last > quiet_min * 60:
+        out.append(("quiet", f"⚠️ {config.BRAND_NAME}: no posts for {int((now - last) // 60)} min while markets "
+                             f"are open. Check GitHub Actions and the daily limits."))
+    by: dict[str, list] = {}
+    for f in STATS.get("fails", []):
+        if f["ts"] > now - 3600:
+            by.setdefault(f["platform"], []).append(f)
+    for name, fs in by.items():
+        if len(fs) >= config.FAIL_ALARM_COUNT:
+            out.append((f"fail:{name}", f"⚠️ {config.BRAND_NAME}: {name} failed {len(fs)} times in the last hour. "
+                                        f"Last error: {fs[-1]['error'][:150]}"))
+    return out
+
+
+def check_alarms(now: float, dry: bool, posted: list) -> None:
+    if not getattr(config, "QUIET_ALARM", False):
+        return
+    sent = STATS.setdefault("alarms", {})
+    for key, msg in alarms_due(now, posted):
+        if now - sent.get(key, 0) < config.ALARM_REPEAT_HOURS * 3600:
+            continue
+        print("\n=== Alarm ===\n" + msg)
+        if not dry:
+            send_private(msg)
+        sent[key] = now
 
 
 def send_daily_report(now: float, dry: bool, posted: list) -> None:
@@ -1495,6 +1539,31 @@ def publish_special(p: dict, kind: str, now: float, dry: bool, posted: list, pla
     return True
 
 
+def close_movers(region: str, now: float) -> list[str]:
+    """['📈 Top gainers: NVDA +6.1%, ...', '📉 Top losers: AMD −8.0%, ...'] from STOCK_TICKERS
+    (US = plain symbols, India = .NS). Only today's prices (fresh within 2 hours) are used."""
+    syms = sorted({s for s in config.STOCK_TICKERS.values() if s.endswith(".NS") == (region == "IN")})
+    moves = []
+    for sym in syms:
+        try:
+            q = prices.fetch_quote(sym)
+        except Exception:  # noqa: BLE001  one bad symbol must not stop the post
+            q = None
+        if not q or not q[0] or not q[1] or (len(q) > 2 and q[2] and now - q[2] > 2 * 3600):
+            continue
+        moves.append(((q[0] / q[1] - 1) * 100, sym.split(".")[0].split("-")[0]))
+    n = getattr(config, "CLOSE_MOVERS_COUNT", 3)
+    up = [m for m in sorted(moves, reverse=True) if m[0] > 0][:n]
+    down = [m for m in sorted(moves) if m[0] < 0][:n]
+    fmt = lambda ms: ", ".join(f"{t} {'+' if p > 0 else '−'}{abs(p):.1f}%" for p, t in ms)
+    out = []
+    if up:
+        out.append("📈 Top gainers: " + fmt(up))
+    if down:
+        out.append("📉 Top losers: " + fmt(down))
+    return out
+
+
 def run_extras(now: float, dry: bool, posted: list, price_state: dict, platforms: list[str], room: int) -> None:
     st = load(EXTRAS_FILE, {"bells": {}, "cal": {}})
     cal = st.setdefault("cal", {})
@@ -1503,7 +1572,10 @@ def run_extras(now: float, dry: bool, posted: list, price_state: dict, platforms
     for bell in extras.due_bells(price_state, st.setdefault("bells", {}), now):
         def mark(b=bell):
             st["bells"][b["id"]] = b["day"]
-        todo.append((special_post(bell["title"] + "\n" + "\n".join(bell["lines"]), bell["tags"], "market"),
+        lines = list(bell["lines"])
+        if getattr(config, "CLOSE_MOVERS", False) and bell["id"].endswith("_close"):
+            lines += close_movers("IN" if bell["id"].startswith("in") else "US", now)
+        todo.append((special_post(bell["title"] + "\n" + "\n".join(lines), bell["tags"], "market"),
                      "market", mark))
 
     if config.CALENDAR_ENABLED:
@@ -2075,6 +2147,10 @@ def main() -> int:
         send_daily_report(now, dry, posted)
     except Exception as e:  # noqa: BLE001
         print(f"  ! daily report error: {e}")
+    try:
+        check_alarms(now, dry, posted)
+    except Exception as e:  # noqa: BLE001  an alarm must never break posting
+        print(f"  ! alarm check error: {e}")
     save_stats(now)
     return 0
 

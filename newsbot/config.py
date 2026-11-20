@@ -458,6 +458,8 @@ DIGEST_TIMEZONE = "America/New_York"   # hours & labels in Eastern time ("16:00�
 DIGEST_MAX_ATTEMPTS = 2          # retries per platform if Facebook/Instagram is down (never on rate limits)
 DIGEST_RATE_LIMIT_COOLDOWN_HOURS = 2   # after "request limit reached", skip that platform's carousels this long
 DIGEST_SKIP_IF_NO_NEW = True     # no new headlines since the last carousel = post nothing that hour
+TELEGRAM_SILENT = True           # update 15: channel posts arrive silently, except 🔴 BREAKING and market
+                                 # open/close bells (stops subscribers muting or leaving a busy channel)
 TELEGRAM_PROMO = "⚡ Live alerts first on Telegram: t.me/NewsB4Noise"   # update 14: 2nd line of Facebook &
                                                                        # Instagram roundups ("" = off). Not on Threads.
 DIGEST_DUP_CHECK = True          # before posting/retrying, check the account's recent posts so nothing is posted twice
@@ -556,6 +558,10 @@ MARKET_BELLS = [
      "symbols": ["^NSEI", "^BSESN", "INR=X"], "tags": ["#Nifty", "#Sensex"]},
 ]
 BELL_WINDOW_MINUTES = 60
+# update 15: the US and India CLOSE posts also list the biggest movers among the stocks in
+# STOCK_TICKERS ("📈 Top gainers: NVDA +6.1%, ...  📉 Top losers: AMD -8.0%, ...")
+CLOSE_MOVERS = True
+CLOSE_MOVERS_COUNT = 3
 
 # --- 🗓 Economic calendar ---------------------------------------------------------
 # Free weekly calendar (Forex Factory's public JSON). The bot posts:
@@ -585,7 +591,7 @@ REEL_ENABLED = True
 REEL_PLATFORMS = ["Instagram", "Facebook", "Telegram", "YouTube", "Private"]
 # Instagram Reels, Facebook Reels, Telegram channel video, YouTube Shorts,
 # "Private" = a copy in your private Telegram chat (remove it once YouTube uploads are public)
-YOUTUBE_PRIVACY = "public"        # until Google approves the API audit, YouTube forces uploads to private
+YOUTUBE_PRIVACY = "public"        # Shorts post publicly (confirmed 19 Nov 2026); "unlisted"/"private" also work
 YOUTUBE_CATEGORY_ID = "25"        # News & Politics
 REEL_AT = "18:30"                 # local time (DIGEST_TIMEZONE), after the US close
 REEL_STORIES = 5
@@ -617,6 +623,11 @@ WELCOME_TEXT = (
 
 # --- 👥 Follower counts in the daily report ----------------------------------------
 REPORT_FOLLOWERS = True
+# update 15: private Telegram alarm when the bot goes quiet or a platform keeps failing
+QUIET_ALARM = True
+QUIET_ALARM_MINUTES = 60          # no post at all for this long while a market is open
+FAIL_ALARM_COUNT = 3              # this many errors on one platform within an hour
+ALARM_REPEAT_HOURS = 3            # the same alarm at most once per 3 hours
 WEEKLY_REPORT = True              # update 14: Sunday's daily report adds a 7-day growth summary
 
 # --- Threads pace (update 8c) ------------------------------------------------------
