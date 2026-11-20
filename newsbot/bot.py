@@ -918,6 +918,8 @@ def queue_for_digest(p: dict, story: dict, now: float) -> dict:
 
 
 def platform_window(name: str) -> int:
+    if name in reel_only_platforms():                # YouTube: everything since its last reel
+        return 60 * reel_every()
     return int(getattr(config, "DIGEST_PLATFORM_WINDOWS", {}).get(name, getattr(config, "DIGEST_WINDOW_MINUTES", 60)))
 
 
@@ -1183,7 +1185,43 @@ def digest_platforms() -> list[str]:
                                      and images.available() else set())
     if env("THREADS_ACCESS_TOKEN"):
         on.add("Threads")
-    return [n for n in config.DIGEST_PLATFORMS if n in on and n in DIGEST_POSTERS]
+    out = [n for n in config.DIGEST_PLATFORMS if n in on and n in DIGEST_POSTERS]
+    for n in reel_only_platforms():                 # update 16: YouTube gets the hourly reels only
+        if all(env(k) for k in REEL_POSTERS[n][1]) and images.available():
+            out.append(n)
+    return out
+
+
+# --- update 16: hourly reels (alternating with carousels) --------------------
+def reel_only_platforms() -> list[str]:
+    if not getattr(config, "HOURLY_REELS", False):
+        return []
+    return [n for n in config.HOURLY_REEL_PLATFORMS if n not in DIGEST_POSTERS and n in REEL_POSTERS]
+
+
+def reel_every() -> int:
+    return max(1, int(getattr(config, "HOURLY_REEL_EVERY_HOURS", 2)))
+
+
+def is_reel_slot(w0: datetime) -> bool:
+    """Reel turn: on the hour, every HOURLY_REEL_EVERY_HOURS (2 -> odd hours)."""
+    e = reel_every()
+    return bool(getattr(config, "HOURLY_REELS", False)) and w0.minute == 0 and w0.hour % e == e - 1
+
+
+def platform_due(name: str, w0: datetime) -> bool:
+    """Is it this platform's turn to post at window start w0?"""
+    if name in reel_only_platforms():
+        return is_reel_slot(w0)
+    win = platform_window(name)
+    if win <= int(getattr(config, "DIGEST_WINDOW_MINUTES", 60)):
+        return True
+    return (w0.hour * 60 + w0.minute) % win == 0
+
+
+def wants_reel(name: str, w0: datetime, items: list[dict]) -> bool:
+    return (name in getattr(config, "HOURLY_REEL_PLATFORMS", []) and is_reel_slot(w0)
+            and len({headline_key(q["headline"]) for q in items}) >= config.HOURLY_REEL_MIN_STORIES)
 
 
 def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
@@ -1227,19 +1265,25 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
         # only when their own window closes.
         hold = st.setdefault("hold", {})
         w0 = _window_start(now)
-        minute_of_day = w0.hour * 60 + w0.minute
         per: dict[str, list] = {}
+        modes: dict[str, str] = {}
         for name in platforms:
             win = platform_window(name)
             hold[name] = [q for q in hold.get(name, []) if q["ts"] > now - (win + 60) * 60]
-            if win > int(getattr(config, "DIGEST_WINDOW_MINUTES", 60)) and minute_of_day % win:
+            if not platform_due(name, w0):
                 hold[name] += ready                     # not this platform's turn yet
                 continue
             items_p = hold.pop(name, []) + ready
-            if items_p:
-                per[name] = items_p
+            if not items_p:
+                continue
+            if wants_reel(name, w0, items_p):
+                modes[name] = "reel"
+            elif name in reel_only_platforms():
+                hold[name] = items_p                    # too few for a reel: YouTube waits for the next one
+                continue
+            per[name] = items_p
         if per:
-            st["batch"] = {"items": ready, "per": per, "done": [], "skipped": [], "attempts": 0,
+            st["batch"] = {"items": ready, "per": per, "modes": modes, "done": [], "skipped": [], "attempts": 0,
                            "end_ts": w0.timestamp()}
     batch = st.get("batch")
     if batch:
@@ -1258,9 +1302,33 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
                       f"{len(dgs[key]['slides'])} slides ===")
             return dgs[key]
 
+        reels: dict[str, dict | None] = {}
+        modes = batch.setdefault("modes", {})
+
+        def reel_for(name: str) -> dict | None:
+            key = "|".join(headline_key(q["headline"]) for q in per[name])
+            if key not in reels:
+                try:
+                    win = platform_window(name)
+                    end = datetime.fromtimestamp(batch.get("end_ts") or now, _tz())
+                    start = end - timedelta(minutes=win)
+                    window = f"{start:%-I %p}–{end:%-I %p} {end.tzname() or ''}".replace(":00", "").strip()
+                    reels[key] = recap.build_hour_reel(per[name], window, end)
+                    print(f"\n=== Hourly reel {window}: top {reels[key]['count']} of {len(per[name])} headlines ===")
+                except Exception as e:  # noqa: BLE001  no video tool / ffmpeg error -> carousel instead
+                    print(f"    ! hourly reel could not be made: {e}")
+                    reels[key] = None
+            return reels[key]
+
         if dry:
             PREVIEW_DIR.mkdir(exist_ok=True)
             for name in per:
+                if modes.get(name) == "reel":
+                    rl = reel_for(name)
+                    if rl:
+                        (PREVIEW_DIR / f"hour_reel_{name.lower()}.mp4").write_bytes(rl["video"])
+                        print(f"    {name}: reel preview saved")
+                        continue
                 dg_for(name)
             for n, d in enumerate(dgs.values()):        # one set of previews per distinct roundup
                 for i, data in enumerate(d["slides"], 1):
@@ -1273,12 +1341,41 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
             for name in [n for n in platforms if n not in per and n not in batch["skipped"]]:
                 batch["skipped"].append(name)           # nothing for this platform in this batch (held)
             for name in [n for n in platforms if n not in batch["done"] + batch["skipped"]]:
-                dg = dg_for(name)
                 if now < digest_cooldown_until(name) or (name == "Threads" and now < threads_blocked_until(now)):
-                    print(f"    - {name}: rate-limited recently, skipping this carousel")
+                    print(f"    - {name}: rate-limited recently, skipping this roundup")
                     batch["skipped"].append(name)
                     continue
-                if already_live(name, dg, retry=batch["attempts"] > 1):
+                if modes.get(name) == "reel":
+                    if batch.setdefault("errs", {}).get(name) == "ambiguous":
+                        # the last try may have gone through; a reel can't be checked cheaply, so never risk a repeat
+                        print(f"    - {name}: last reel attempt may have posted - not trying again")
+                        batch["skipped"].append(name)
+                        continue
+                    rl = reel_for(name)
+                    if rl is None and name in DIGEST_POSTERS:
+                        modes[name] = "carousel"        # fall back to the carousel this hour
+                    elif rl is None:
+                        batch["skipped"].append(name)
+                        continue
+                    else:
+                        try:
+                            pid = REEL_POSTERS[name][0](rl)
+                            batch["done"].append(name)
+                            print(f"    ✓ {name} hourly reel {pid}")
+                        except Exception as e:  # noqa: BLE001
+                            print(f"    ! {name} hourly reel failed (attempt {batch['attempts']}): {e}")
+                            record_fail(name, e, now)
+                            batch["errs"][name] = (
+                                "ambiguous" if is_rate_limit(e) or sent_but_unconfirmed(e)
+                                or re.search(r"HTTP 5\d\d", str(e)) or "timed out" in str(e).lower() else "rejected")
+                            if is_rate_limit(e):
+                                batch["skipped"].append(name)
+                        continue
+                dg = dg_for(name)
+                # only an ambiguous earlier error (timeout, rate limit, server error) can mean "posted anyway";
+                # a clear rejection (e.g. HTTP 400 permissions) means nothing was published (update 15.1)
+                maybe_live = batch.setdefault("errs", {}).get(name) == "ambiguous"
+                if already_live(name, dg, retry=maybe_live):
                     print(f"    ✓ {name} carousel already live - not posting it again")
                     batch["done"].append(name)
                     continue
@@ -1289,6 +1386,9 @@ def run_digest(now: float, dry: bool, new_items: list[dict]) -> None:
                 except Exception as e:  # noqa: BLE001
                     print(f"    ! {name} digest failed (attempt {batch['attempts']}): {e}")
                     record_fail(name, e, now)
+                    batch.setdefault("errs", {})[name] = (
+                        "ambiguous" if is_rate_limit(e) or sent_but_unconfirmed(e) or re.search(r"HTTP 5\d\d", str(e))
+                        else "rejected")
                     if is_rate_limit(e):
                         batch["skipped"].append(name)   # never retry a rate limit (it may even be live)
             for key, d in dgs.items():
@@ -1553,8 +1653,8 @@ def close_movers(region: str, now: float) -> list[str]:
             continue
         moves.append(((q[0] / q[1] - 1) * 100, sym.split(".")[0].split("-")[0]))
     n = getattr(config, "CLOSE_MOVERS_COUNT", 3)
-    up = [m for m in sorted(moves, reverse=True) if m[0] > 0][:n]
-    down = [m for m in sorted(moves) if m[0] < 0][:n]
+    up = [m for m in sorted(moves, reverse=True) if m[0] >= 0.05][:n]      # skip moves that round to 0.0%
+    down = [m for m in sorted(moves) if m[0] <= -0.05][:n]
     fmt = lambda ms: ", ".join(f"{t} {'+' if p > 0 else '−'}{abs(p):.1f}%" for p, t in ms)
     out = []
     if up:
@@ -1998,8 +2098,22 @@ def build_posts(story: dict) -> dict:
 def needs_video() -> bool:
     """Used by the workflow: install the video tool only around reel time."""
     st = load(RECAP_FILE, {})
-    return bool(config.REEL_ENABLED and recap.due(config.REEL_AT, config.DIGEST_TIMEZONE,
-                                                     (st.get("reel") or {}).get("day", ""), time.time()))
+    if config.REEL_ENABLED and recap.due(config.REEL_AT, config.DIGEST_TIMEZONE,
+                                         (st.get("reel") or {}).get("day", ""), time.time()):
+        return True
+    return hourly_reel_soon(time.time())
+
+
+def hourly_reel_soon(now: float) -> bool:
+    """update 16: just before / during a reel hour, or a reel still waiting to be retried."""
+    if not getattr(config, "HOURLY_REELS", False):
+        return False
+    pend = (load(DIGEST_FILE, {}).get("batch") or {}).get("modes") or {}
+    if "reel" in pend.values():
+        return True
+    dt = datetime.fromtimestamp(now, _tz())
+    nxt = datetime.fromtimestamp(now + 10 * 60, _tz()).replace(minute=0, second=0, microsecond=0)
+    return is_reel_slot(dt.replace(minute=0, second=0, microsecond=0)) and dt.minute < 45 or is_reel_slot(nxt)
 
 
 def main() -> int:

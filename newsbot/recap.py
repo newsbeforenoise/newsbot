@@ -60,10 +60,10 @@ def _fonts():
     return (lambda s: ImageFont.truetype(bold, s)), (lambda s: ImageFont.truetype(medium, s))
 
 
-def _canvas():
-    from PIL import Image, ImageDraw
-    img = Image.new("RGB", (RW, RH), config.CARD_BACKGROUND)
-    return img, ImageDraw.Draw(img)
+def _canvas(label: str = "MARKETS", seed: str = ""):
+    from PIL import ImageDraw
+    img = images.background(RW, RH, label, seed)
+    return img, ImageDraw.Draw(img, "RGBA")
 
 
 def _png(img) -> bytes:
@@ -97,7 +97,7 @@ def frame_intro(title: str, subtitle: str, pill: str) -> bytes:
     tw = d.textlength(pill, font=f_pill)
     x = (RW - tw - 56) / 2
     d.rounded_rectangle([x, 720, x + tw + 56, 790], radius=35, fill=config.CARD_ACCENT_MARKETS)
-    d.text((x + 28, 731), pill, font=f_pill, fill=config.CARD_BACKGROUND)
+    d.text((x + 28, 731), pill, font=f_pill, fill=(0, 0, 0))
     y = 840
     for line in title.split("\n"):
         _centered(d, y, line, B(104), config.CARD_TEXT)
@@ -108,22 +108,19 @@ def frame_intro(title: str, subtitle: str, pill: str) -> bytes:
 
 
 def frame_story(item: dict, idx: int, total: int, label: str) -> bytes:
-    from PIL import Image
-    img, _ = _canvas()
+    from PIL import ImageDraw
     B, M = _fonts()
     when = datetime.fromtimestamp(item["ts"], _tz())
-    card = Image.open(io.BytesIO(images.render(item["story"], item["headline"], item["credit"], when)))
-    top = (RH - card.height) // 2 - 40
-    img.paste(card, (0, top))
-    from PIL import ImageDraw
-    d = ImageDraw.Draw(img)
+    top = (RH - images.H) // 2 - 40
+    img = images.render_image(item["story"], item["headline"], item["credit"], when, height=RH, top_pad=top)
+    d = ImageDraw.Draw(img, "RGBA")
     # header: "TOP 5 TODAY" + counter, progress bar
     f = B(40)
     d.text((images.MARGIN, top - 150), label, font=f, fill=config.CARD_ACCENT_MARKETS)
     cnt = f"{idx}/{total}"
     d.text((RW - images.MARGIN - d.textlength(cnt, font=f), top - 150), cnt, font=f, fill=config.CARD_TEXT)
     bar_y, bw = top - 80, RW - 2 * images.MARGIN
-    d.rounded_rectangle([images.MARGIN, bar_y, images.MARGIN + bw, bar_y + 8], radius=4, fill=(45, 45, 45))
+    d.rounded_rectangle([images.MARGIN, bar_y, images.MARGIN + bw, bar_y + 8], radius=4, fill=(255, 255, 255, 50))
     d.rounded_rectangle([images.MARGIN, bar_y, images.MARGIN + bw * idx / total, bar_y + 8], radius=4,
                         fill=config.CARD_ACCENT_MARKETS)
     return _png(img)
@@ -159,11 +156,12 @@ def ffmpeg_exe() -> str | None:
         return shutil.which("ffmpeg")
 
 
-def pick_track(day: datetime) -> Path | None:
+def pick_track(day: datetime, hourly: bool = False) -> Path | None:
     tracks = sorted(MUSIC_DIR.glob("*.m4a")) + sorted(MUSIC_DIR.glob("*.mp3"))
     if not tracks:
         return None
-    return tracks[day.toordinal() % len(tracks)]
+    n = day.toordinal() * 24 + day.hour if hourly else day.toordinal()
+    return tracks[n % len(tracks)]
 
 
 def make_video(frames: list[tuple[bytes, float]], music: Path | None) -> bytes:
@@ -219,6 +217,27 @@ def build_reel(top: list[dict], day: datetime) -> dict:
                + " ".join(config.REEL_HASHTAGS) + "\nAutomated headline alerts. Not financial advice.")
     return {"video": video, "caption": caption[:2150], "count": n,
             "title": f"Today's Top {n} Market & World Stories – {day:%d %b %Y}"}
+
+
+def build_hour_reel(items: list[dict], window: str, when: datetime) -> dict:
+    """update 16: 'Top N this hour' reel from roundup items (biggest first)."""
+    top = sorted(items, key=lambda q: (q["priority"], q.get("focus", False), q["ts"]),
+                 reverse=True)[: config.HOURLY_REEL_STORIES]
+    n = len(top)
+    frames = [(frame_intro(f"Top {n}\nThis Hour", window, "MARKETS & WORLD"), config.REEL_INTRO_SECONDS)]
+    for i, item in enumerate(top, 1):
+        frames.append((frame_story(item, i, n, f"TOP {n} THIS HOUR"), config.HOURLY_REEL_STORY_SECONDS))
+    frames.append((frame_outro(), config.REEL_OUTRO_SECONDS))
+    video = make_video(frames, pick_track(when, hourly=True))
+    plain = [q.get("plain") or q["headline"] for q in top]
+    lines = [f"{i}. {h}" for i, h in enumerate(plain, 1)]
+    caption = (f"🎬 Top {n} stories ({window})\n\n" + "\n".join(lines)
+               + "\n\nFollow " + config.BRAND_HANDLE + " for markets news before the noise.\n"
+               + " ".join(config.REEL_HASHTAGS) + "\nAutomated headline alerts. Not financial advice.")
+    lead = top[0]["headline"].strip()
+    title = lead if len(lead) <= 88 else lead[:85].rsplit(" ", 1)[0] + "…"
+    return {"video": video, "caption": caption[:2150], "count": n, "title": title,
+            "keys": [q["headline"] for q in top]}
 
 
 # ----------------------------------------------------------------------------

@@ -7,6 +7,7 @@ bot.images.render = lambda *a, **k: b"JPEG"; bot.images.available = lambda: True
 d = Path(tempfile.mkdtemp()); bot.DIGEST_FILE = d / "digest.json"
 bot.time.sleep = lambda s: None
 config.DIGEST_TIMEZONE = "UTC"
+config.HOURLY_REELS = False   # update 16 reels: tests/test_scenarios.py s42-s45
 config.DIGEST_PLATFORM_WINDOWS = {}   # these checks: every platform on 30 min (Instagram hourly: check_update13_2.py)
 import os
 for k in ("FB_PAGE_ID", "FB_PAGE_TOKEN", "IG_USER_ID", "THREADS_ACCESS_TOKEN", "THREADS_USER_ID"):

@@ -447,7 +447,7 @@ IMAGE_DAILY_LIMITS = {"Facebook": 40, "Instagram": 25}   # only used if a platfo
 # Set DIGEST_PLATFORMS = [] to go back to one Facebook/Instagram post per headline.
 DIGEST_PLATFORMS = ["Facebook", "Instagram", "Threads"]   # update 13: Threads joins the roundup
 DIGEST_WINDOW_MINUTES = 30       # one roundup post every 30 minutes (Telegram stays instant)
-DIGEST_PLATFORM_WINDOWS = {"Instagram": 60}   # update 13.2: Instagram posts hourly (stays well under its
+DIGEST_PLATFORM_WINDOWS = {"Instagram": 60, "Facebook": 60}   # update 16: Facebook + Instagram hourly  # was: update 13.2: Instagram posts hourly (stays well under its
                                               # ~50 posts/day cap and request budget); others every 30 min
 DIGEST_MIN_PRIORITY = 2          # 2 = markets + geopolitics; 3 = markets & price alerts only
 DIGEST_MAX_SLIDES = 10           # update 14: was 15 - per 30-min roundup (20 an hour); frees Meta's request budget for Instagram
@@ -469,6 +469,15 @@ MAX_HASHTAGS_INSTAGRAM = 5
 FACEBOOK_PUBLISH = True          # False = upload to the Page unpublished, only to host the Instagram image
 GRAPH_API_VERSION = "v24.0"      # Meta Graph API version (update every ~2 years)
 CARD_BACKGROUND = (0, 0, 0)
+# update 16: colour backgrounds with the NBN logo watermark ("black" = the original plain black cards)
+CARD_STYLE = "themed"
+CARD_THEMES = {                    # (top colour, bottom colour) - one is picked per headline, so the feed varies
+    "MARKETS":     [((10, 32, 74), (2, 8, 24)), ((6, 44, 64), (1, 12, 20)), ((34, 22, 70), (8, 4, 22))],
+    "GEOPOLITICS": [((74, 14, 24), (18, 3, 8)), ((70, 32, 10), (20, 8, 2))],
+    "PRICE ALERT": [((8, 62, 46), (2, 16, 12)), ((10, 52, 60), (2, 14, 18))],
+    "UPDATE":      [((18, 36, 84), (4, 10, 26))],
+    "BRAND":       [((28, 28, 34), (0, 0, 0))],
+}
 CARD_TEXT = (255, 255, 255)
 CARD_ACCENT_MARKETS = (255, 196, 0)    # yellow pill
 CARD_ACCENT_GEO = (255, 90, 90)        # red pill
@@ -587,6 +596,16 @@ DAILY_REPORT_AT = "21:00"
 # 10. RECAPS & GROWTH (update 8)
 # ===========================================================================
 # --- 🎬 Daily reel: top stories of the day as a short video with music -------------
+# update 16: hourly reels. Facebook + Instagram alternate - carousel on even hours, a "Top 10 this
+# hour" reel on odd hours (1 PM, 3 PM, ...). The same reel goes to YouTube Shorts (covering the last
+# 2 hours). Fewer than HOURLY_REEL_MIN_STORIES headlines -> a normal carousel instead (YouTube waits).
+HOURLY_REELS = True
+HOURLY_REEL_PLATFORMS = ["Instagram", "Facebook", "YouTube"]
+HOURLY_REEL_EVERY_HOURS = 2       # 2 = every other hour (12 reels a day); 1 = reel every hour
+HOURLY_REEL_MIN_STORIES = 3
+HOURLY_REEL_STORIES = 10
+HOURLY_REEL_STORY_SECONDS = 3.2
+
 REEL_ENABLED = True
 REEL_PLATFORMS = ["Instagram", "Facebook", "Telegram", "YouTube", "Private"]
 # Instagram Reels, Facebook Reels, Telegram channel video, YouTube Shorts,

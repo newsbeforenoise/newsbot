@@ -152,6 +152,7 @@ def setup():
     bot.config.DIGEST_WINDOW_MINUTES = 60                        # the 30-min Threads roundup is in tests/check_update13.py
     bot.config.TRUSTED_OWNERS = []          # scenarios use cnbc/bbc/nikkei as stand-ins; s22 tests trusted
     bot.config.QUIET_ALARM = False          # alarms have their own checks (tests/check_update15.py)
+    bot.config.HOURLY_REELS = False         # carousel scenarios; the reel alternation is s42-s45
     bot.config.POST_SPACING_SECONDS = 0
     bot.EXTRAS_FILE, bot.STATS_FILE = d / "extras.json", d / "stats.json"
     bot.config.MARKET_BELLS, bot.config.CALENDAR_ENABLED, bot.config.DAILY_REPORT = [], False, False
@@ -994,6 +995,117 @@ def s41_threads_block_triggers_cooldown():
         bot.post_threads = real
         bot.PLATFORMS["Threads"] = (real, bot.PLATFORMS["Threads"][1])
     return "Threads 'restricted activity' block -> 6h quiet period, Telegram unaffected"
+
+
+# --- update 16: hourly carousel / reel alternation ---------------------------
+def _reel_setup(net, video_ok=True):
+    bot.config.HOURLY_REELS = True
+    bot.config.HOURLY_REEL_PLATFORMS = ["Instagram", "Facebook", "YouTube"]
+    bot.config.HOURLY_REEL_EVERY_HOURS = 2
+    bot.config.HOURLY_REEL_MIN_STORIES = 3
+    bot.config.DIGEST_PLATFORM_WINDOWS = {"Instagram": 60, "Facebook": 60}
+    reels = []
+    def fake_build(items, window, when):
+        if not video_ok:
+            raise RuntimeError("ffmpeg not available")
+        return {"video": b"MP4", "caption": f"Top {len(items)} " + window, "count": len(items),
+                "title": items[0]["headline"], "keys": []}
+    bot.recap.build_hour_reel = fake_build
+    for n in ("Instagram", "Facebook", "YouTube"):
+        bot.REEL_POSTERS[n] = (lambda rl, n=n: reels.append((n, rl)) or f"{n}-reel", bot.REEL_POSTERS[n][1])
+    os.environ.update({"YT_CLIENT_ID": "x", "YT_CLIENT_SECRET": "x", "YT_REFRESH_TOKEN": "x"})
+    return reels
+
+
+_ORIG_REEL = dict(bot.REEL_POSTERS)
+_ORIG_BUILD = bot.recap.build_hour_reel
+
+
+def _reel_teardown():
+    bot.REEL_POSTERS.update(_ORIG_REEL)
+    bot.recap.build_hour_reel = _ORIG_BUILD
+    bot.config.HOURLY_REELS = False
+    for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"):
+        os.environ.pop(k, None)
+
+
+def _reel_stories(net, t):
+    run_at(net, t)
+    put(net, NIKKEI); put(net, VOLGOGRAD); put(net, MSFT)
+    run_at(net, t + 60)
+
+
+def s42_odd_hour_reel_even_hour_carousel():
+    net = setup()
+    reels = _reel_setup(net)
+    try:
+        _reel_stories(net, at_et(2026, 11, 20, 10, 5))          # stories 10:05 -> roundup at 11:00 (odd)
+        run_at(net, at_et(2026, 11, 20, 11, 1))
+        names = sorted(n for n, _ in reels)
+        assert names == ["Facebook", "Instagram", "YouTube"], names
+        assert not [c for c in net.calls if c[0] == "Facebook" and c[1] == "feed"], "carousel posted at reel hour"
+        assert not net.posts("Instagram")
+        reels.clear()
+        put(net, MSFT_UPDATE); put(net, RUMOUR)                    # new stories 11:10 -> 12:00 (even)
+        run_at(net, at_et(2026, 11, 20, 11, 10))
+        run_at(net, at_et(2026, 11, 20, 12, 1))
+        assert not reels, reels
+        assert [c for c in net.calls if c[0] == "Facebook" and c[2].get("published") != "false"], net.calls
+        assert len([c for c in net.calls if c[0] == "Instagram" and c[1] == "media_publish"]) == 1
+    finally:
+        _reel_teardown()
+    return "11 AM: reel on Facebook + Instagram + YouTube (no carousel); 12 PM: carousel, no reel"
+
+
+def s43_few_stories_carousel_youtube_waits():
+    net = setup()
+    reels = _reel_setup(net)
+    try:
+        run_at(net, at_et(2026, 11, 20, 12, 5))
+        put(net, NIKKEI)
+        run_at(net, at_et(2026, 11, 20, 12, 6))                  # one headline only
+        run_at(net, at_et(2026, 11, 20, 13, 1))
+        assert not reels, reels
+        assert len([c for c in net.calls if c[0] == "Instagram" and c[1] == "media_publish"]) == 1
+        hold = json.loads(bot.DIGEST_FILE.read_text())["hold"]
+        assert len(hold.get("YouTube", [])) == 1, hold            # YouTube keeps it for its next reel
+    finally:
+        _reel_teardown()
+    return "1 headline at a reel hour: normal post on Facebook/Instagram; YouTube waits (no thin reel)"
+
+
+def s44_no_video_tool_falls_back_to_carousel():
+    net = setup()
+    reels = _reel_setup(net, video_ok=False)
+    try:
+        _reel_stories(net, at_et(2026, 11, 20, 14, 5))
+        run_at(net, at_et(2026, 11, 20, 15, 1))
+        assert not reels
+        assert len([c for c in net.calls if c[0] == "Instagram" and c[1] == "media_publish"]) == 1
+        assert len([c for c in net.calls if c[0] == "Facebook" and c[1] == "feed"]) == 1
+    finally:
+        _reel_teardown()
+    return "video tool missing at a reel hour: Facebook/Instagram post the carousel instead; YouTube skipped"
+
+
+def s45_ambiguous_reel_error_never_reposts():
+    net = setup()
+    reels = _reel_setup(net)
+    tries = []
+    def flaky(rl):
+        tries.append(1)
+        raise RuntimeError("The read operation timed out")
+    bot.REEL_POSTERS["Instagram"] = (flaky, bot.REEL_POSTERS["Instagram"][1])
+    try:
+        _reel_stories(net, at_et(2026, 11, 20, 16, 5))
+        run_at(net, at_et(2026, 11, 20, 17, 1))
+        run_at(net, at_et(2026, 11, 20, 17, 6))
+        run_at(net, at_et(2026, 11, 20, 17, 11))
+        assert len(tries) == 1, tries
+        assert sorted(n for n, _ in reels) == ["Facebook", "YouTube"]
+    finally:
+        _reel_teardown()
+    return "Instagram reel timed out (may be live): not uploaded again; Facebook + YouTube once each"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]
