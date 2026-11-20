@@ -763,15 +763,15 @@ def _qitem(i, prio=3, ts=None):
 
 def test_digest_caps_at_10_slides_no_cover():
     old_max = bot.config.DIGEST_MAX_SLIDES
-    bot.config.DIGEST_MAX_SLIDES = 10          # the cap logic itself (live setting is 15)
+    bot.config.DIGEST_MAX_SLIDES = 10          # the cap logic itself
     items = [_qitem(i) for i in range(14)]
     try:
         dg = bot.build_digest(items)
         assert len(dg["slides"]) == 10 and dg["count"] == 14
-        assert "+4 more headlines" in dg["caption"] and dg["caption"].count("\n10. ") == 1
+        assert dg["caption"].count("\n14. ") == 1                 # update 14: caption lists every headline
         bot.config.DIGEST_COVER = True
         dg2 = bot.build_digest(items)
-        assert len(dg2["slides"]) == 10 and "+5 more headlines" in dg2["caption"]
+        assert len(dg2["slides"]) == 10 and dg2["caption"].count("\n14. ") == 1
     finally:
         bot.config.DIGEST_COVER = False
         bot.config.DIGEST_MAX_SLIDES = old_max

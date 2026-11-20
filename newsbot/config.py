@@ -36,6 +36,11 @@ FEEDS = [
     {"name": "Fox Business",       "owner": "fox",        "url": "https://moxie.foxbusiness.com/google-publisher/latest.xml"},
     {"name": "Investing.com",      "owner": "investing",  "url": "https://www.investing.com/rss/news.rss"},
     {"name": "Seeking Alpha",      "owner": "seekingalpha","url": "https://seekingalpha.com/market_currents.xml"},
+    # update 14: faster free market newswires (a dead feed is simply skipped)
+    {"name": "Benzinga",           "owner": "benzinga",   "url": "https://www.benzinga.com/feed"},
+    {"name": "Benzinga Markets",   "owner": "benzinga",   "url": "https://www.benzinga.com/markets/feed"},
+    {"name": "Benzinga Movers",    "owner": "benzinga",   "url": "https://www.benzinga.com/movers/feed"},
+    {"name": "Business Insider Markets","owner": "insider","url": "https://markets.businessinsider.com/rss/news"},
     {"name": "FXStreet",           "owner": "fxstreet",   "url": "https://www.fxstreet.com/rss/news"},
     {"name": "BBC Business",       "owner": "bbc",        "url": "https://feeds.bbci.co.uk/news/business/rss.xml"},
     {"name": "BBC World",          "owner": "bbc",        "url": "https://feeds.bbci.co.uk/news/world/rss.xml"},
@@ -81,7 +86,7 @@ MIN_SOURCES = 2
 # first seen in the last TRUSTED_MAX_AGE_MINUTES, so it's genuinely breaking news.
 # Empty list [] = every story needs MIN_SOURCES. Rumour/"reportedly" headlines are
 # still blocked, and so is anything not about markets or geopolitics.
-TRUSTED_OWNERS = ["bloomberg", "dowjones", "ft", "cnbc", "nikkei", "bbc"]
+TRUSTED_OWNERS = ["bloomberg", "dowjones", "ft", "cnbc", "nikkei", "bbc", "seekingalpha", "benzinga"]   # update 14: + fast newswires
 TRUSTED_MAX_AGE_MINUTES = 20
 
 # Official feeds publish lots of routine notices. Only post official items
@@ -129,6 +134,9 @@ MARKET_KEYWORDS = [
     "earnings", "revenue", "profit", "guidance", "ipo", "merger", "acquisition", "acquire", "buyback",
     "dividend", "bankruptcy", "downgrade", "upgrade", "rating", "moody's", "fitch", "ceo", "layoffs",
     "outage", "billion", "trillion", "valuation", "sec", "sebi", "antitrust",
+    # update 14: deals & financing (were tagged #Geopolitics because of words like "talks")
+    "buy", "buys", "buyout", "takeover", "stake", "refinance", "refinancing", "lenders",
+    "private equity", "funding", "fundraise", "credit", "loan", "loans",
     "nvidia", "apple", "microsoft", "google", "alphabet", "amazon", "meta", "tesla", "openai",
     "intel", "amd", "tsmc", "samsung", "softbank", "toyota", "alibaba", "tencent", "byd", "boeing",
     "berkshire", "jpmorgan", "goldman", "blackrock", "reliance", "tata", "infosys", "adani", "hdfc",
@@ -253,7 +261,44 @@ COUNTRIES = {
     "ES": {"flag": "🇪🇸", "tag": "#Spain", "words": ["spain", "spanish", "madrid"]},
     "PL": {"flag": "🇵🇱", "tag": "#Poland", "words": ["poland", "polish", "warsaw"]},
     "GR": {"flag": "🇬🇷", "tag": "#Greece", "words": ["greece", "greek", "athens"]},
+    # update 14
+    "RO": {"flag": "🇷🇴", "tag": "#Romania", "words": ["romania", "romanian", "bucharest"]},
+    "HU": {"flag": "🇭🇺", "tag": "#Hungary", "words": ["hungary", "hungarian", "budapest", "orban"]},
+    "CZ": {"flag": "🇨🇿", "tag": "#Czechia", "words": ["czech", "czechia", "prague"]},
+    "PT": {"flag": "🇵🇹", "tag": "#Portugal", "words": ["portugal", "portuguese", "lisbon"]},
+    "AT": {"flag": "🇦🇹", "tag": "#Austria", "words": ["austria", "austrian", "vienna"]},
+    "BE": {"flag": "🇧🇪", "tag": "#Belgium", "words": ["belgium", "belgian", "brussels"]},
+    "DK": {"flag": "🇩🇰", "tag": "#Denmark", "words": ["denmark", "danish", "copenhagen"]},
+    "GL": {"flag": "🇬🇱", "tag": "#Greenland", "words": ["greenland", "greenlandic", "nuuk"]},
+    "SE": {"flag": "🇸🇪", "tag": "#Sweden", "words": ["sweden", "swedish", "stockholm"]},
+    "FI": {"flag": "🇫🇮", "tag": "#Finland", "words": ["finland", "finnish", "helsinki"]},
+    "IE": {"flag": "🇮🇪", "tag": "#Ireland", "words": ["ireland", "irish", "dublin"]},
+    "CL": {"flag": "🇨🇱", "tag": "#Chile", "words": ["chile", "chilean", "santiago"]},
+    "CO": {"flag": "🇨🇴", "tag": "#Colombia", "words": ["colombia", "colombian", "bogota"]},
+    "PE": {"flag": "🇵🇪", "tag": "#Peru", "words": ["peru", "peruvian", "lima"]},
+    "KE": {"flag": "🇰🇪", "tag": "#Kenya", "words": ["kenya", "kenyan", "nairobi"]},
+    "SN": {"flag": "🇸🇳", "tag": "#Senegal", "words": ["senegal", "senegalese", "dakar"]},
+    "GH": {"flag": "🇬🇭", "tag": "#Ghana", "words": ["ghana", "ghanaian", "accra"]},
+    "MA": {"flag": "🇲🇦", "tag": "#Morocco", "words": ["morocco", "moroccan", "rabat"]},
+    "IQ": {"flag": "🇮🇶", "tag": "#Iraq", "words": ["iraq", "iraqi", "baghdad"]},
+    "SY": {"flag": "🇸🇾", "tag": "#Syria", "words": ["syria", "syrian", "damascus"]},
+    "LB": {"flag": "🇱🇧", "tag": "#Lebanon", "words": ["lebanon", "lebanese", "beirut", "hezbollah"]},
+    "KW": {"flag": "🇰🇼", "tag": "#Kuwait", "words": ["kuwait", "kuwaiti"]},
+    "OM": {"flag": "🇴🇲", "tag": "#Oman", "words": ["oman", "omani", "muscat"]},
+    "AF": {"flag": "🇦🇫", "tag": "#Afghanistan", "words": ["afghanistan", "afghan", "kabul", "taliban"]},
+    "NP": {"flag": "🇳🇵", "tag": "#Nepal", "words": ["nepal", "nepalese", "kathmandu"]},
+    "KZ": {"flag": "🇰🇿", "tag": "#Kazakhstan", "words": ["kazakhstan", "kazakh", "astana"]},
 }
+
+# update 14: "Citi Sees Romanian Carry Appeal" is about ROMANIA, not the US. When an analyst firm
+# is only giving a view (sees / says / expects / upgrades...), its home country is not added.
+ANALYST_FIRMS = ["citi", "citigroup", "goldman", "goldman sachs", "jpmorgan", "morgan stanley", "bofa",
+                 "bank of america", "ubs", "barclays", "hsbc", "deutsche bank", "nomura", "jefferies",
+                 "wells fargo", "bernstein", "blackrock", "pimco", "amundi", "bridgewater", "moody's",
+                 "fitch", "s&p global"]
+ANALYST_VERBS = ["sees", "says", "expects", "forecasts", "predicts", "warns", "upgrades", "downgrades",
+                 "raises", "cuts", "lifts", "likes", "prefers", "bets", "recommends", "favors", "favours",
+                 "flags", "turns", "strategist", "strategists", "analysts", "economists", "rates"]
 
 # ===========================================================================
 # 4. HASHTAGS. X/Bluesky/Telegram get up to MAX_HASHTAGS_X; Threads gets the
@@ -405,7 +450,7 @@ DIGEST_WINDOW_MINUTES = 30       # one roundup post every 30 minutes (Telegram s
 DIGEST_PLATFORM_WINDOWS = {"Instagram": 60}   # update 13.2: Instagram posts hourly (stays well under its
                                               # ~50 posts/day cap and request budget); others every 30 min
 DIGEST_MIN_PRIORITY = 2          # 2 = markets + geopolitics; 3 = markets & price alerts only
-DIGEST_MAX_SLIDES = 15           # per 30-minute roundup = up to 30 headlines an hour (Facebook shows them all)
+DIGEST_MAX_SLIDES = 10           # update 14: was 15 - per 30-min roundup (20 an hour); frees Meta's request budget for Instagram
 DIGEST_SLIDE_LIMITS = {"Instagram": 10, "Threads": 20}   # API maximums per post; the rest go in the caption
 DIGEST_SIMILAR_HOURS = 6         # a story already in a roundup in the last 6 h is never posted again, even reworded
 DIGEST_COVER = False             # False = slide 1 is the top headline itself (no summary cover slide)
@@ -413,6 +458,8 @@ DIGEST_TIMEZONE = "America/New_York"   # hours & labels in Eastern time ("16:00�
 DIGEST_MAX_ATTEMPTS = 2          # retries per platform if Facebook/Instagram is down (never on rate limits)
 DIGEST_RATE_LIMIT_COOLDOWN_HOURS = 2   # after "request limit reached", skip that platform's carousels this long
 DIGEST_SKIP_IF_NO_NEW = True     # no new headlines since the last carousel = post nothing that hour
+TELEGRAM_PROMO = "⚡ Live alerts first on Telegram: t.me/NewsB4Noise"   # update 14: 2nd line of Facebook &
+                                                                       # Instagram roundups ("" = off). Not on Threads.
 DIGEST_DUP_CHECK = True          # before posting/retrying, check the account's recent posts so nothing is posted twice
 DIGEST_MAX_AGE_HOURS = 2         # never put headlines older than this in a carousel
 IMAGE_MIN_PRIORITY = 3          # 3 = markets + price alerts only; 2 = also geopolitics
@@ -462,6 +509,8 @@ FRESH_HOURS = 3           # ignore news older than this
 MIN_SHARED_WORDS = 3      # headlines must share this many key words...
 MIN_OVERLAP = 0.5         # ...and this fraction of the shorter one's key words...
 MIN_SPECIFIC_WORDS = 2    # ...and at least this many SPECIFIC shared words (not in GENERIC_WORDS)
+SAME_TOPIC_HOURS = 3      # update 14: within this time, 2+ shared specific words (one of them not a country or
+                          # leader) = same story; it's posted again only as a real update (new facts)
 GENERIC_WORDS = """
 stock stocks share shares market markets price prices rise rises rose fall falls fell gain gains drop drops
 jump jumps slip slips climb climbs surge surges slump slumps plunge plunges rally rallies tumble tumbles
@@ -568,6 +617,7 @@ WELCOME_TEXT = (
 
 # --- 👥 Follower counts in the daily report ----------------------------------------
 REPORT_FOLLOWERS = True
+WEEKLY_REPORT = True              # update 14: Sunday's daily report adds a 7-day growth summary
 
 # --- Threads pace (update 8c) ------------------------------------------------------
 # Threads blocks new accounts that post too often ("action is blocked", subcode 2207051).

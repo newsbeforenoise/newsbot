@@ -151,9 +151,27 @@ def _mentions(text: str, words: list[str]) -> bool:
     return any(_word_pos(low, w) >= 0 for w in words)
 
 
+def _mask_analyst_firms(low: str) -> str:
+    """'citi sees romanian carry...' -> the firm is giving a view, so its name shouldn't add 🇺🇸."""
+    verbs = set(getattr(config, "ANALYST_VERBS", []))
+    for firm in sorted(getattr(config, "ANALYST_FIRMS", []), key=len, reverse=True):
+        pos = _word_pos(low, firm)
+        if pos < 0:
+            continue
+        after = re.findall(r"[a-z']+", low[pos + len(firm):])[:2]
+        if after and (after[0] in verbs or after[0] in ("'s", "s") and len(after) > 1 and after[1] in verbs):
+            low = low[:pos] + " " * len(firm) + low[pos + len(firm):]
+    return low
+
+
 def detect_countries(text: str) -> list[str]:
-    """Country codes mentioned in the text, in order of first appearance."""
-    low = text.lower()
+    """Country codes mentioned in the text, in order of first appearance. An analyst firm only
+    giving a view ('Citi Sees Romanian...') doesn't count when another country is named."""
+    masked = _detect_countries(text, _mask_analyst_firms(text.lower()))
+    return masked or _detect_countries(text, text.lower())
+
+
+def _detect_countries(text: str, low: str) -> list[str]:
     found = []
     for code, d in config.COUNTRIES.items():
         positions = [p for p in (_word_pos(low, w) for w in d["words"]) if p >= 0]
@@ -386,6 +404,28 @@ def has_signal(words: set[str]) -> bool:
                for w in words)
 
 
+_PLACE_STEMS: set[str] = set()
+_BIG = ("US", "CN", "IN", "EU", "GB", "JP", "DE", "FR", "RU", "UA", "IR", "IL")   # in the news all day
+
+
+def _places() -> set[str]:
+    """Names of the less-common countries/places (Greenland, Senegal, Romania...)."""
+    if not _PLACE_STEMS:
+        for code, d in config.COUNTRIES.items():
+            if code not in _BIG:
+                _PLACE_STEMS.update(stem(w) for w in d["words"] if " " not in w)
+    return _PLACE_STEMS
+
+
+def same_topic(a: set[str], b: set[str]) -> bool:
+    """Looser than similar(), for reworded repeats: both headlines name the same less-common
+    place AND share at least one more specific word. ('Trump's Greenland Deal To Take Effect' vs
+    'Denmark ... Approves US Military Expansion Deal In Greenland'.) Tested on a day of real
+    headlines: catches the Greenland pair, leaves different Trump/Anthropic/APEC stories alone."""
+    shared = (a & b) - _generic()
+    return len(shared) >= 2 and bool(shared & _places())
+
+
 def followup_parent(related: list[dict], posted: list[dict], words: set[str], now: float) -> str | None:
     """If this headline is a genuine update to a posted story, return that story's id."""
     if not config.FOLLOWUPS:
@@ -464,7 +504,10 @@ def find_stories(items: dict, posted: list, now: float, trends: list[str] | None
         union_words = set().union(*(g["wset"] for g in group))
         best_words = key_words(best["title"])
         related = [p for p in posted
-                   if similar(anchor["wset"], set(p["words"])) or similar(union_words & set(p["words"]), set(p["words"]))]
+                   if similar(anchor["wset"], set(p["words"])) or similar(union_words & set(p["words"]), set(p["words"]))
+                   or (not p.get("is_price") and not p.get("kind")
+                       and p["ts"] > now - getattr(config, "SAME_TOPIC_HOURS", 0) * 3600
+                       and same_topic(best_words, set(p["words"])))]
         followup_of = None
         if related:
             followup_of = followup_parent(related, posted, best_words, now)
@@ -892,16 +935,26 @@ def build_digest(items: list[dict], minutes: int | None = None, end_ts: float | 
     from collections import Counter
     counts = Counter(t for q in items for t in q["tags"] if t not in (config.MARKET_TAG, config.GEO_TAG))
     tags = [t for t, _ in counts.most_common(config.MAX_HASHTAGS_INSTAGRAM - 1)] + [config.MARKET_TAG]
-    lines = [f"{i}. {q['plain']}" for i, q in enumerate(picked, 1)]
-    more = len(items) - len(picked)
-    if more > 0:
-        lines.append(f"+{more} more headlines today on our other channels")
     mins = int(minutes or getattr(config, "DIGEST_WINDOW_MINUTES", 60))
     span = "this hour" if mins == 60 else f"last {mins} min"
     head = (f"🕐 Global markets {span} ({window})" if len(items) > 1 else picked[0]["plain"])
-    caption = head + "\n\n" + ("\n".join(lines) + "\n\n" if len(items) > 1 else "") + " ".join(tags)
-    caption += ("\n\nSwipe for every headline ➡️" if len(slides) > 1 else "")
-    caption += "\nAutomated headline alerts. Not financial advice."
+    promo = getattr(config, "TELEGRAM_PROMO", "")
+    swipe = ("Swipe for every headline ➡️" if len(slides) >= len(items) else "Swipe for the top headlines ➡️")
+    tail = " ".join(tags) + ("\n\n" + swipe if len(slides) > 1 else "") + "\nAutomated headline alerts. Not financial advice."
+    # update 14: the caption lists EVERY headline that fits (slides are capped at DIGEST_MAX_SLIDES)
+    ranked = sorted(items, key=lambda q: (q["priority"], q.get("focus", False), q["ts"]), reverse=True)
+    budget = 2150 - len(head) - len(promo) - len(tail) - 60
+    lines: list[str] = []
+    for i, q in enumerate(ranked, 1):
+        line = f"{i}. {q['plain']}"
+        if sum(len(x) + 1 for x in lines) + len(line) > budget:
+            break
+        lines.append(line)
+    more = len(items) - len(lines)
+    if more > 0:
+        lines.append(f"+{more} more on Telegram")
+    caption = head + (f"\n{promo}" if promo else "") + "\n\n" + \
+        ("\n".join(lines) + "\n\n" if len(items) > 1 else "") + tail
     slide_keys = ([f"cover|{window}"] if cover else []) + [headline_key(q["headline"]) for q in picked]
     return {"slides": slides, "slide_keys": slide_keys, "caption": caption[:2150], "window": window, "count": len(items),
             "picked": picked, "head": head, "tags": tags}
@@ -1309,6 +1362,74 @@ def send_private(text: str) -> None:
                   {"chat_id": chat, "text": text, "disable_web_page_preview": "true"})
 
 
+def record_day(day: str, posted: list, now: float) -> None:
+    """One line of history per day (kept 21 days) for the weekly growth report."""
+    since = now - 86400
+    posts: dict[str, int] = {}
+    for p in posted:
+        if p["ts"] > since:
+            for name in p.get("platforms", []):
+                posts[name] = posts.get(name, 0) + 1
+    for d in STATS.get("digests", []):
+        if d["ts"] > since:
+            for name in d.get("done", []):
+                posts[name] = posts.get(name, 0) + 1
+    fails: dict[str, int] = {}
+    for f in STATS.get("fails", []):
+        if f["ts"] > since:
+            fails[f["platform"]] = fails.get(f["platform"], 0) + 1
+    hist = STATS.setdefault("history", {})
+    hist[day] = {"followers": dict(STATS.get("followers") or {}), "posts": posts, "fails": fails}
+    for old in sorted(hist)[:-21]:
+        del hist[old]
+
+
+def is_report_sunday(now: float) -> bool:
+    return datetime.fromtimestamp(now, _zone(config.DAILY_REPORT_TIMEZONE)).weekday() == 6
+
+
+def _zone(name: str):
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(name)
+    except Exception:  # noqa: BLE001
+        return timezone.utc
+
+
+def weekly_report(day: str) -> str:
+    """7-day growth summary: followers now vs a week ago, posts and errors per platform."""
+    hist = STATS.get("history", {})
+    days = [d for d in sorted(hist) if d <= day][-7:]
+    if not days:
+        return "📈 Weekly report: not enough history yet (starts filling from today)."
+    first, last = hist[days[0]], hist[days[-1]]
+    lines = [f"📈 WEEK IN NUMBERS ({days[0]} → {days[-1]}, {len(days)} days of data)"]
+    fol_now, fol_then = last.get("followers") or {}, first.get("followers") or {}
+    if fol_now:
+        bits = []
+        for k, v in sorted(fol_now.items(), key=lambda kv: -(kv[1] or 0)):
+            if v is None:
+                continue
+            then = fol_then.get(k)
+            delta = f" ({v - then:+,})" if isinstance(then, int) and len(days) > 1 else ""
+            bits.append(f"{k} {v:,}{delta}")
+        lines.append("👥 Followers: " + " | ".join(bits))
+    posts: dict[str, int] = {}
+    fails: dict[str, int] = {}
+    for d in days:
+        for k, v in hist[d].get("posts", {}).items():
+            posts[k] = posts.get(k, 0) + v
+        for k, v in hist[d].get("fails", {}).items():
+            fails[k] = fails.get(k, 0) + v
+    if posts:
+        lines.append("📤 Posts: " + " | ".join(f"{k} {v:,}" for k, v in sorted(posts.items(), key=lambda kv: -kv[1])))
+    lines.append("⚠️ Errors: " + (" | ".join(f"{k} {v}" for k, v in sorted(fails.items(), key=lambda kv: -kv[1]))
+                                 if fails else "none"))
+    grew = [k for k, v in fol_now.items() if isinstance(v, int) and isinstance(fol_then.get(k), int) and v > fol_then[k]]
+    lines.append("🏆 Growing: " + (", ".join(grew) if grew else "no platform grew this week"))
+    return "\n".join(lines)
+
+
 def send_daily_report(now: float, dry: bool, posted: list) -> None:
     day = extras.report_due(STATS, now)
     if not day:
@@ -1318,6 +1439,9 @@ def send_daily_report(now: float, dry: bool, posted: list) -> None:
         prev = STATS.get("followers") or {}
         STATS["followers_prev"], STATS["followers"] = prev, counts
     text = extras.build_report(posted, STATS, enabled_platforms(), digest_platforms(), now)
+    record_day(day, posted, now)
+    if getattr(config, "WEEKLY_REPORT", False) and is_report_sunday(now):
+        text += "\n\n" + weekly_report(day)
     print("\n=== Daily report ===\n" + text)
     if not dry:
         send_private(text)
