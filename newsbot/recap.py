@@ -127,16 +127,29 @@ def frame_story(item: dict, idx: int, total: int, label: str) -> bytes:
 
 
 def frame_outro() -> bytes:
+    """End card (update 18): Like / Follow / Subscribe call to action."""
     img, d = _canvas()
     B, M = _fonts()
-    lg = _logo(260)
+    lg = _logo(220)
     if lg:
-        img.paste(lg[0], ((RW - 260) // 2, 520), lg[1])
-    _centered(d, 840, "Follow for markets news", B(64), config.CARD_TEXT)
-    _centered(d, 920, "before the noise.", B(64), config.CARD_TEXT)
-    _centered(d, 1060, config.BRAND_HANDLE, B(56), config.CARD_ACCENT_MARKETS)
-    _centered(d, 1150, "Telegram · Threads · X · Instagram · Facebook", M(34), (150, 150, 150))
-    _centered(d, RH - 300, "Automated headline alerts. Not financial advice.", M(30), (110, 110, 110))
+        img.paste(lg[0], ((RW - 220) // 2, 300), lg[1])
+    _centered(d, 580, "Enjoyed the update?", B(70), config.CARD_TEXT)
+    rows = [("LIKE", (255, 92, 122), "this video"),
+            ("FOLLOW", config.CARD_ACCENT_MARKETS, "us on Instagram & Facebook"),
+            ("SUBSCRIBE", (255, 70, 70), "on YouTube")]
+    f_pill, f_txt = B(46), M(42)
+    y = 760
+    for word, colour, rest in rows:
+        pw = d.textlength(word, font=f_pill) + 64
+        tw = d.textlength(rest, font=f_txt)
+        x = (RW - (pw + 28 + tw)) // 2
+        d.rounded_rectangle([x, y, x + pw, y + 86], radius=43, fill=colour)
+        d.text((x + 32, y + 14), word, font=f_pill, fill=(0, 0, 0))
+        d.text((x + pw + 28, y + 20), rest, font=f_txt, fill=config.CARD_TEXT)
+        y += 130
+    _centered(d, y + 50, config.BRAND_HANDLE, B(60), config.CARD_ACCENT_MARKETS)
+    _centered(d, y + 140, "Also on Telegram · Threads · X", M(34), (170, 170, 170))
+    _centered(d, RH - 300, "Automated headline alerts. Not financial advice.", M(30), (130, 130, 130))
     return _png(img)
 
 
@@ -213,7 +226,8 @@ def build_reel(top: list[dict], day: datetime) -> dict:
     video = make_video(frames, pick_track(day))
     lines = [f"{i}. {x['headline']}" + (f" – {x['credit']}" if x["credit"] else "") for i, x in enumerate(top, 1)]
     caption = (f"📰 Today's top {n} stories ({day:%d %b})\n\n" + "\n".join(lines)
-               + "\n\nFollow " + config.BRAND_HANDLE + " for markets news before the noise.\n"
+               + "\n\n❤️ Like · ➕ Follow · 🔔 Subscribe " + config.BRAND_HANDLE
+               + " for markets & world news before the noise.\n"
                + " ".join(config.REEL_HASHTAGS) + "\nAutomated headline alerts. Not financial advice.")
     return {"video": video, "caption": caption[:2150], "count": n,
             "title": f"Today's Top {n} Market & World Stories – {day:%d %b %Y}"}
@@ -232,7 +246,8 @@ def build_hour_reel(items: list[dict], window: str, when: datetime) -> dict:
     plain = [q.get("plain") or q["headline"] for q in top]
     lines = [f"{i}. {h}" for i, h in enumerate(plain, 1)]
     caption = (f"🎬 Top {n} stories ({window})\n\n" + "\n".join(lines)
-               + "\n\nFollow " + config.BRAND_HANDLE + " for markets news before the noise.\n"
+               + "\n\n❤️ Like · ➕ Follow · 🔔 Subscribe " + config.BRAND_HANDLE
+               + " for markets & world news before the noise.\n"
                + " ".join(config.REEL_HASHTAGS) + "\nAutomated headline alerts. Not financial advice.")
     lead = top[0]["headline"].strip()
     title = lead if len(lead) <= 88 else lead[:85].rsplit(" ", 1)[0] + "…"
