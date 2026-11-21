@@ -477,6 +477,7 @@ CARD_THEMES = {                    # (top colour, bottom colour) - one is picked
     "PRICE ALERT": [((8, 62, 46), (2, 16, 12)), ((10, 52, 60), (2, 14, 18))],
     "UPDATE":      [((18, 36, 84), (4, 10, 26))],
     "BRAND":       [((28, 28, 34), (0, 0, 0))],
+    "STOCK SPOTLIGHT": [((44, 20, 78), (10, 4, 26)), ((20, 40, 80), (4, 8, 24))],
 }
 CARD_TEXT = (255, 255, 255)
 CARD_ACCENT_MARKETS = (255, 196, 0)    # yellow pill
@@ -571,6 +572,20 @@ BELL_WINDOW_MINUTES = 60
 # STOCK_TICKERS ("📈 Top gainers: NVDA +6.1%, ...  📉 Top losers: AMD -8.0%, ...")
 CLOSE_MOVERS = True
 CLOSE_MOVERS_COUNT = 3
+
+# --- 🔍 Stock Spotlight (update 17) ------------------------------------------------
+# When nothing has posted for SPOTLIGHT_QUIET_MINUTES (quiet hours, weekends), post a factual
+# technical snapshot of one stock from STOCK_TICKERS that is near its 52-week high/low (or a big
+# 5-day mover): price vs range, 50/200-day averages, RSI, volume, and a signal count.
+# Never a buy/sell call - every post says "not financial advice".
+SPOTLIGHT_ENABLED = True
+SPOTLIGHT_QUIET_MINUTES = 60      # no posts for this long -> spotlight
+SPOTLIGHT_GAP_HOURS = 3           # at most one every 3 hours
+SPOTLIGHT_MAX_PER_DAY = 4
+SPOTLIGHT_HOURS = (8, 22)         # local DIGEST_TIMEZONE hours (8 AM - 10 PM)
+SPOTLIGHT_NEAR_PCT = 2.0          # "near" a 52-week high/low = within 2%
+SPOTLIGHT_MOVER_PCT = 7.0         # otherwise a 5-day move of 7%+
+SPOTLIGHT_REPEAT_DAYS = 7         # same stock not again within a week
 
 # --- 🗓 Economic calendar ---------------------------------------------------------
 # Free weekly calendar (Forex Factory's public JSON). The bot posts:

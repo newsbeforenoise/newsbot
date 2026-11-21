@@ -43,6 +43,8 @@ def country_name(code: str) -> str:
 
 def label_for(story: dict) -> tuple[str, str]:
     """(label text, colour) for the category pill."""
+    if story.get("spotlight"):
+        return "STOCK SPOTLIGHT", (190, 150, 255)
     if story.get("is_price"):
         return "PRICE ALERT", config.CARD_ACCENT_PRICE
     if story.get("followup"):

@@ -45,6 +45,7 @@ import config  # noqa: E402
 import extras  # noqa: E402
 import images  # noqa: E402
 import prices  # noqa: E402
+import spotlight  # noqa: E402
 import recap  # noqa: E402
 import daily_recap  # noqa: E402
 
@@ -914,7 +915,7 @@ def queue_for_digest(p: dict, story: dict, now: float) -> dict:
     return {"ts": now, "headline": p["headline"], "credit": p["credit_main"], "plain": p["plain"],
             "words": list(story.get("words", [])),
             "tags": story.get("tags", []), "priority": story["priority"], "focus": story.get("focus", False),
-            "story": {k: story.get(k) for k in ("priority", "countries", "followup", "is_price")}}
+            "story": {k: story.get(k) for k in ("priority", "countries", "followup", "is_price", "spotlight")}}
 
 
 def platform_window(name: str) -> int:
@@ -1714,6 +1715,61 @@ def run_extras(now: float, dry: bool, posted: list, price_state: dict, platforms
     save(EXTRAS_FILE, st)
 
 
+# --- Stock Spotlight (update 17): fills quiet hours / weekends -----------------
+def spotlight_due(now: float, posted: list, st: dict) -> bool:
+    if not getattr(config, "SPOTLIGHT_ENABLED", False):
+        return False
+    local = datetime.fromtimestamp(now, _tz())
+    a, b = config.SPOTLIGHT_HOURS
+    if not a <= local.hour < b:
+        return False
+    day = local.strftime("%Y-%m-%d")
+    if st.get("day") == day and st.get("count", 0) >= config.SPOTLIGHT_MAX_PER_DAY:
+        return False
+    if now - st.get("last", 0) < config.SPOTLIGHT_GAP_HOURS * 3600:
+        return False
+    last_other = max([p["ts"] for p in posted if p.get("kind") != "spotlight"] or [0])
+    return now - last_other >= config.SPOTLIGHT_QUIET_MINUTES * 60
+
+
+def run_spotlight(now: float, dry: bool, posted: list, platforms: list[str], digest_items: list[dict]) -> None:
+    ex = load(EXTRAS_FILE, {})
+    st = ex.setdefault("spotlight", {})
+    if not spotlight_due(now, posted, st):
+        return
+    names: dict[str, str] = {}
+    for n, sym in config.STOCK_TICKERS.items():          # longest name per symbol ("alphabet" > "google")
+        if len(n) > len(names.get(sym, "")):
+            names[sym] = n
+    syms = sorted(set(config.STOCK_TICKERS.values()))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        hist = dict(zip(syms, pool.map(spotlight.fetch_history, syms)))
+    analyses = [spotlight.analyze(sym, h) for sym, h in hist.items() if h]
+    recent = [r["sym"] for r in st.get("recent", []) if now - r["ts"] < config.SPOTLIGHT_REPEAT_DAYS * 86400]
+    a = spotlight.pick(analyses, recent)
+    print(f"\nStock Spotlight: {len(analyses)}/{len(syms)} stocks analysed -> "
+          f"{a['symbol'] + ' (' + spotlight.setup_of(a) + ')' if a else 'nothing interesting'}")
+    if not a:
+        st["last"] = now - (config.SPOTLIGHT_GAP_HOURS - 1) * 3600    # look again in an hour
+        save(EXTRAS_FILE, ex)
+        return
+    c = spotlight.compose(a, names.get(a["symbol"], "").title())
+    p = special_post(c["text"], c["tags"], "spotlight")
+    if not publish_special(p, "spotlight", now, dry, posted, platforms):
+        return
+    story = {"priority": 3, "countries": [c["country"]], "followup": False, "is_price": False,
+             "spotlight": True, "words": sorted(key_words(c["headline"])), "tags": c["tags"], "focus": False}
+    card = {"headline": c["headline"], "credit_main": "Yahoo Finance · Not advice",
+            "plain": f"🔍 {c['headline']} (technical snapshot, not financial advice)"}
+    digest_items.append(queue_for_digest(card, story, now))
+    day = datetime.fromtimestamp(now, _tz()).strftime("%Y-%m-%d")
+    st["count"] = (st.get("count", 0) + 1) if st.get("day") == day else 1
+    st["day"], st["last"] = day, now
+    st["recent"] = ([r for r in st.get("recent", []) if now - r["ts"] < 30 * 86400]
+                    + [{"sym": a["symbol"], "ts": now}])[-60:]
+    save(EXTRAS_FILE, ex)
+
+
 # --- Daily reel, weekly recap, welcome post, follower counts (update 8) --------
 RECAP_LOG: list = []      # stories posted in this run (merged into recap.json by run_recaps)
 
@@ -2244,6 +2300,11 @@ def main() -> int:
         run_extras(now, dry, posted, price_state, platforms, day_left - count)
     except Exception as e:  # noqa: BLE001  extras must never break live posting
         print(f"  ! extras error: {e}")
+    if not count:
+        try:
+            run_spotlight(now, dry, posted, platforms, digest_items)
+        except Exception as e:  # noqa: BLE001  the spotlight must never break live posting
+            print(f"  ! spotlight error: {e}")
     save(ITEMS_FILE, items)
     save(POSTED_FILE, posted)
     if config.DIGEST_PLATFORMS:

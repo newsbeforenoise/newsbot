@@ -153,6 +153,7 @@ def setup():
     bot.config.TRUSTED_OWNERS = []          # scenarios use cnbc/bbc/nikkei as stand-ins; s22 tests trusted
     bot.config.QUIET_ALARM = False          # alarms have their own checks (tests/check_update15.py)
     bot.config.HOURLY_REELS = False         # carousel scenarios; the reel alternation is s42-s45
+    bot.config.SPOTLIGHT_ENABLED = False    # stock spotlight has its own scenarios (s46-s48)
     bot.config.POST_SPACING_SECONDS = 0
     bot.EXTRAS_FILE, bot.STATS_FILE = d / "extras.json", d / "stats.json"
     bot.config.MARKET_BELLS, bot.config.CALENDAR_ENABLED, bot.config.DAILY_REPORT = [], False, False
@@ -1106,6 +1107,97 @@ def s45_ambiguous_reel_error_never_reposts():
     finally:
         _reel_teardown()
     return "Instagram reel timed out (may be live): not uploaded again; Facebook + YouTube once each"
+
+
+# --- update 17: Stock Spotlight on quiet hours -------------------------------
+def _fake_hist(sym):
+    import math
+    base = {"NVDA": 100, "INTC": 40}.get(sym, 50)
+    if sym == "NVDA":      # steady climb to a 52-week high
+        close = [base + i * 0.35 + math.sin(i / 5) for i in range(250)]
+    elif sym == "INTC":    # slide to a 52-week low
+        close = [base - i * 0.08 + math.sin(i / 4) * 0.3 for i in range(250)]
+    else:                  # flat, nothing interesting
+        close = [base + math.sin(i / 3) * 3 for i in range(250)]
+    return {"close": close, "high": [c * 1.003 for c in close], "low": [c * 0.997 for c in close],
+            "volume": [1e6] * 249 + [2.1e6], "time": 0, "currency": "USD", "price": close[-1]}
+
+
+def _spot_setup():
+    bot.config.SPOTLIGHT_ENABLED = True
+    bot.config.SPOTLIGHT_HOURS = (8, 22)
+    bot.config.STOCK_TICKERS = {"nvidia": "NVDA", "intel": "INTC", "apple": "AAPL"}
+    bot.spotlight.fetch_history = _fake_hist
+
+
+_ORIG_TICKERS = dict(bot.config.STOCK_TICKERS)
+_ORIG_HIST = bot.spotlight.fetch_history
+
+
+def _spot_teardown():
+    bot.config.SPOTLIGHT_ENABLED = False
+    bot.config.STOCK_TICKERS = _ORIG_TICKERS
+    bot.spotlight.fetch_history = _ORIG_HIST
+
+
+def _spots(net, t):
+    """Run at time t; return the Stock Spotlight texts sent to Telegram in that run."""
+    run_at(net, t)
+    return [c[2].get("text", "") for c in net.calls if c[0] == "Telegram" and "STOCK SPOTLIGHT" in c[2].get("text", "")]
+
+
+def s46_quiet_hour_posts_one_spotlight():
+    net = setup()
+    _spot_setup()
+    try:
+        t = at_et(2026, 11, 21, 10, 0)                       # Saturday, no news at all
+        run_at(net, t - 300)                                 # first run = baseline
+        tg = _spots(net, t)
+        assert len(tg) == 1, tg
+        assert "Nvidia (NVDA)" in tg[0] and "52-week high" in tg[0], tg[0]
+        assert "not financial advice" in tg[0] and "not a buy/sell recommendation" in tg[0]
+        assert "buy now" not in tg[0].lower() and "strong buy" not in tg[0].lower()
+        assert not _spots(net, t + 30 * 60) and not _spots(net, t + 2 * 3600), "more than one within 3 hours"
+        tg = _spots(net, t + 3 * 3600 + 60)
+        assert len(tg) == 1 and "Intel (INTC)" in tg[0] and "52-week low" in tg[0], tg
+        third = _spots(net, t + 6 * 3600 + 120)
+        assert not any("NVDA" in x or "INTC" in x for x in third), third     # no repeat within a week
+    finally:
+        _spot_teardown()
+    return "quiet Saturday: NVDA near 52-week high, 3 h later INTC near low; no repeats, max 1 per 3 h, disclaimer on every post"
+
+
+def s47_no_spotlight_when_news_flowing_or_at_night():
+    net = setup()
+    _spot_setup()
+    try:
+        t = at_et(2026, 11, 20, 10, 0)
+        run_at(net, t - 300)
+        assert len(_spots(net, t)) == 1                      # quiet -> spotlight
+        put(net, NIKKEI)
+        assert not _spots(net, t + 3 * 3600 + 60)            # news posted this run -> no spotlight
+        assert not _spots(net, t + 3 * 3600 + 600)           # news 10 min ago -> not quiet yet
+        assert not _spots(net, at_et(2026, 11, 20, 23, 30))  # night -> never
+        assert not _spots(net, at_et(2026, 11, 21, 3, 0))
+    finally:
+        _spot_teardown()
+    return "no spotlight while news is flowing, within an hour of a post, or overnight (10 PM - 8 AM)"
+
+
+def s48_spotlight_goes_into_the_social_roundup():
+    net = setup()
+    _spot_setup()
+    try:
+        t = at_et(2026, 11, 21, 10, 0)
+        run_at(net, t - 300)
+        assert len(_spots(net, t + 60)) == 1
+        run_at(net, at_et(2026, 11, 21, 11, 1))
+        fb = [c for c in net.calls if c[0] == "Facebook" and "52-week" in str(c[2])]
+        assert fb, [c[:2] for c in net.calls]
+        assert len([c for c in net.calls if c[0] == "Instagram" and c[1] == "media_publish"]) == 1
+    finally:
+        _spot_teardown()
+    return "the spotlight card also goes out in the next Facebook / Instagram roundup"
 
 
 SCENARIOS = [v for k, v in sorted(globals().items()) if k.startswith("s") and k[1:3].isdigit()]
