@@ -1,0 +1,770 @@
+{
+ "feeds": [
+  52,
+  58
+ ],
+ "fails": [
+  {
+   "ts": 1795089634.267796,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795089926.919348,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795090221.0698526,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795101623.741812,
+   "platform": "Telegram",
+   "error": "HTTP 502: {\"ok\":false,\"error_code\":502,\"description\":\"Bad Gateway\"}"
+  },
+  {
+   "ts": 1795101917.930561,
+   "platform": "Telegram",
+   "error": "HTTP 502: {\"ok\":false,\"error_code\":502,\"description\":\"Bad Gateway\"}"
+  },
+  {
+   "ts": 1795101917.930561,
+   "platform": "Telegram",
+   "error": "HTTP 502: {\"ok\":false,\"error_code\":502,\"description\":\"Bad Gateway\"}"
+  },
+  {
+   "ts": 1795102227.9698288,
+   "platform": "Telegram",
+   "error": "The read operation timed out"
+  },
+  {
+   "ts": 1795102227.9698288,
+   "platform": "Telegram",
+   "error": "The read operation timed out"
+  },
+  {
+   "ts": 1795102227.9698288,
+   "platform": "Telegram",
+   "error": "The read operation timed out"
+  },
+  {
+   "ts": 1795102227.9698288,
+   "platform": "Threads",
+   "error": "HTTP 400: {\"error\":{\"message\":\"An unknown error occurred\",\"code\":1,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protect our co"
+  },
+  {
+   "ts": 1795104033.6916318,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795111237.5365844,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795122032.5787566,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795132829.8876736,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795140032.8383157,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795150827.2940428,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795158029.0448313,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795168830.4637232,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795176031.1766765,
+   "platform": "Instagram",
+   "error": "HTTP 403: {\"error\":{\"message\":\"Application request limit reached\",\"code\":4,\"type\":\"OAuthException\",\"error_subcode\":2207051,\"is_transient\":false,\"error_user_msg\":\"We restrict certain activity to protec"
+  },
+  {
+   "ts": 1795185030.5029578,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"Any of the pages_read_engagement, pages_manage_metadata,\\n        pages_read_user_content, pages_manage_ads, pages_show_list or\\n        pages_messaging permission(s) mu"
+  },
+  {
+   "ts": 1795186828.088345,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"Any of the pages_read_engagement, pages_manage_metadata,\\n        pages_read_user_content, pages_manage_ads, pages_show_list or\\n        pages_messaging permission(s) mu"
+  },
+  {
+   "ts": 1795186828.088345,
+   "platform": "Instagram",
+   "error": "HTTP 400: {\"error\":{\"message\":\"Any of the pages_read_engagement, pages_manage_metadata,\\n        pages_read_user_content, pages_manage_ads, pages_show_list or\\n        pages_messaging permission(s) mu"
+  },
+  {
+   "ts": 1795188626.4995952,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"Any of the pages_read_engagement, pages_manage_metadata,\\n        pages_read_user_content, pages_manage_ads, pages_show_list or\\n        pages_messaging permission(s) mu"
+  },
+  {
+   "ts": 1795190430.1605322,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"Any of the pages_read_engagement, pages_manage_metadata,\\n        pages_read_user_content, pages_manage_ads, pages_show_list or\\n        pages_messaging permission(s) mu"
+  },
+  {
+   "ts": 1795190430.1605322,
+   "platform": "Instagram",
+   "error": "HTTP 400: {\"error\":{\"message\":\"Any of the pages_read_engagement, pages_manage_metadata,\\n        pages_read_user_content, pages_manage_ads, pages_show_list or\\n        pages_messaging permission(s) mu"
+  },
+  {
+   "ts": 1795190430.1605322,
+   "platform": "Threads",
+   "error": "HTTP 400: {\"error\":{\"message\":\"API access blocked.\",\"code\":200,\"type\":\"OAuthException\",\"error_subcode\":5258005,\"fbtrace_id\":\"AkOKTorw7jFxFZMba2nfjHE\"}}"
+  },
+  {
+   "ts": 1795191021.2514286,
+   "platform": "Telegram",
+   "error": "network error: [Errno 104] Connection reset by peer"
+  },
+  {
+   "ts": 1795195222.7361758,
+   "platform": "Telegram",
+   "error": "HTTP 502: {\"ok\":false,\"error_code\":502,\"description\":\"Bad Gateway\"}"
+  },
+  {
+   "ts": 1795195516.480243,
+   "platform": "Telegram",
+   "error": "HTTP 502: {\"ok\":false,\"error_code\":502,\"description\":\"Bad Gateway\"}"
+  },
+  {
+   "ts": 1795195516.480243,
+   "platform": "Telegram",
+   "error": "HTTP 502: {\"ok\":false,\"error_code\":502,\"description\":\"Bad Gateway\"}"
+  }
+ ],
+ "digests": [
+  {
+   "ts": 1795090221.0698526,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795102227.9698288,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795104033.6916318,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795105826.5712526,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795107632.9491463,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795109431.2988198,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795111237.5365844,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795113026.3702703,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795114831.1517189,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795116625.730224,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795118430.1851425,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795120230.520825,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795122032.5787566,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795123824.698821,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795125628.7709835,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795127423.8849125,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795129228.946626,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795131026.226736,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795132829.8876736,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795134631.3676596,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795136428.8013608,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795138226.185864,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795140032.8383157,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795141825.9841695,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795143627.707048,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795145423.8510933,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795147227.352939,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795149025.4261308,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795150827.2940428,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795152626.8997383,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795154427.9688284,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795156226.302921,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795158029.0448313,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795159826.6048272,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795161626.8833678,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795163432.010983,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795165228.969499,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795167034.4799492,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795168830.4637232,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795170632.1136405,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795172427.089947,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795174226.6028838,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795176031.1766765,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795177826.077728,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795179630.2791529,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795181429.5717127,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795183230.8922572,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795185318.0021598,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795187125.768397,
+   "done": [
+    "Facebook",
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795188919.1023843,
+   "done": [
+    "Facebook"
+   ]
+  },
+  {
+   "ts": 1795190719.8889205,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795192227.7828724,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795194030.648511,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795195826.522581,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795197641.1216557,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795199427.2071214,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795201226.564622,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795203022.976815,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795204827.9496775,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795206629.5512419,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795208429.0517943,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795210222.9345534,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795212031.7444453,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795213828.4465554,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795215629.8927176,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795217423.4633791,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795219230.261767,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795221027.9349563,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795222828.2272422,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795224623.9087267,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795226428.1628952,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795228228.230217,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795230027.0427945,
+   "done": [
+    "Facebook",
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795233631.7456033,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795239026.2709374,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795240827.8807542,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795242627.7846594,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795244424.5090883,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795248027.3740501,
+   "done": [
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795249826.5813136,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795251626.633525,
+   "done": [
+    "Facebook",
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795253424.6314607,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795255227.0789757,
+   "done": [
+    "Facebook",
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795258826.5179546,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795260623.9566505,
+   "done": [
+    "Threads"
+   ]
+  }
+ ],
+ "reels": [
+  {
+   "ts": 1795131026.226736,
+   "done": [
+    "Instagram",
+    "Facebook",
+    "Telegram",
+    "YouTube",
+    "Private"
+   ]
+  },
+  {
+   "ts": 1795217423.4633791,
+   "done": [
+    "Instagram",
+    "Facebook",
+    "Telegram",
+    "YouTube",
+    "Private"
+   ]
+  }
+ ],
+ "followers_prev": {
+  "Telegram": 5,
+  "Instagram": 6,
+  "Facebook": 2,
+  "Threads": 1
+ },
+ "followers": {
+  "Telegram": 7,
+  "Instagram": 12,
+  "Facebook": 2,
+  "Threads": 1
+ },
+ "report_day": "2026-11-20",
+ "alarms": {
+  "fail:Facebook": 1795188626.4995952,
+  "fail:Telegram": 1795195826.522581
+ },
+ "history": {
+  "2026-11-20": {
+   "followers": {
+    "Telegram": 7,
+    "Instagram": 12,
+    "Facebook": 2,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 416,
+    "Facebook": 41,
+    "Threads": 21,
+    "Instagram": 12,
+    "YouTube": 5
+   },
+   "fails": {
+    "Instagram": 7,
+    "Facebook": 4,
+    "Threads": 1,
+    "Telegram": 4
+   }
+  }
+ }
+}
