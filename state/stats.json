@@ -1,0 +1,1366 @@
+{
+ "feeds": [
+  52,
+  58
+ ],
+ "fails": [
+  {
+   "ts": 1795719626.1007857,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795719916.2592227,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795723229.962634,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795723229.962634,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795723521.9205778,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795723521.9205778,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795726825.7532208,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795727116.8568592,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795730427.5555491,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795730427.5555491,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795730718.2755184,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795730718.2755184,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795731324.3564034,
+   "platform": "Facebook recap",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795734028.184752,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795734317.9281883,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795735827.0956497,
+   "platform": "Facebook reel",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795736119.0702515,
+   "platform": "Facebook reel",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795736421.3467453,
+   "platform": "Facebook reel",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795737631.8525712,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795737925.650765,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795744826.5079644,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795745119.0905113,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795748427.4116893,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795748716.753944,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795752035.9079168,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795752321.0287597,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795755628.2558851,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795755917.3827581,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795759228.9550214,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795759517.9183784,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795762825.9970047,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795763119.941344,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795766429.5019403,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795766719.1563852,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795770027.1198013,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795770319.1704283,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795773626.6035888,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795773918.874302,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795777230.0834382,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795777230.0834382,
+   "platform": "Facebook recap",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795777519.47671,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795780837.7294636,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795781124.9493458,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795784429.4126303,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795784723.2397258,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795788031.0603428,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795788031.0603428,
+   "platform": "Instagram",
+   "error": "HTTP 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}"
+  },
+  {
+   "ts": 1795788323.1775181,
+   "platform": "Telegram",
+   "error": "network error: [Errno 104] Connection reset by peer"
+  },
+  {
+   "ts": 1795788323.1775181,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795788323.1775181,
+   "platform": "Instagram",
+   "error": "HTTP 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}"
+  },
+  {
+   "ts": 1795788628.5176666,
+   "platform": "Telegram",
+   "error": "network error: [Errno 104] Connection reset by peer"
+  },
+  {
+   "ts": 1795791635.7446043,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795791917.865226,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795795233.2552881,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795795233.2552881,
+   "platform": "Instagram",
+   "error": "HTTP 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}"
+  },
+  {
+   "ts": 1795795519.9053235,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795798832.2522337,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795799117.311618,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795802431.1279633,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795802431.1279633,
+   "platform": "Instagram",
+   "error": "HTTP 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}"
+  },
+  {
+   "ts": 1795802431.1279633,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795802721.1042151,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795802721.1042151,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795806029.0571082,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795806317.7727652,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795809627.2797015,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795809627.2797015,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795809925.0447247,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795809925.0447247,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795813232.8666062,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795813516.8678005,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795816828.1932826,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795816828.1932826,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795817125.2674458,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795817125.2674458,
+   "platform": "YouTube",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795817727.1296904,
+   "platform": "Facebook recap",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795820428.1098895,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795820720.100553,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795822224.2116494,
+   "platform": "Facebook reel",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795822224.2116494,
+   "platform": "YouTube reel",
+   "error": "HTTP 400: {\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"The user has exceeded the number of videos they may upload.\",\n    \"errors\": [\n      {\n        \"message\": \"The user has exceeded the number of "
+  },
+  {
+   "ts": 1795822519.1543202,
+   "platform": "Facebook reel",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795822821.1722891,
+   "platform": "Facebook reel",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795824029.335922,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795824318.2282994,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795827627.214503,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795827917.9963467,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795831230.0373938,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795831525.6273832,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795838432.879174,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795838724.9362943,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795842024.544624,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795842318.3025699,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795849225.931128,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795849515.9786532,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795852827.4649243,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795853123.5857372,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795856428.2875843,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795856716.9171133,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795860030.7695315,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795860321.902942,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795863628.2098742,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795863919.750876,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795867230.115887,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795867526.4387212,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795870826.1894312,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795871024.772127,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795874430.630157,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795874719.0028086,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795878028.2934046,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795878317.0456629,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795881628.4117067,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795881918.755975,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795885228.395297,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795885517.959956,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795888837.4984498,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  },
+  {
+   "ts": 1795889028.3679636,
+   "platform": "Facebook",
+   "error": "HTTP 400: {\"error\":{\"message\":\"We limit how often you can post, comment or do other things in a given amount of time in order to help protect the community from spam. You can try again later. Learn Mo"
+  }
+ ],
+ "digests": [
+  {
+   "ts": 1795717834.4217772,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795719916.2592227,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795721425.294519,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795723521.9205778,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795725026.5647767,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795727116.8568592,
+   "done": [
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795728625.0659509,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795730718.2755184,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795732224.7451782,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795734317.9281883,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795735827.0956497,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795737925.650765,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795739425.1730518,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795741227.7799928,
+   "done": [
+    "Facebook",
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795743022.8848433,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795745119.0905113,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795746634.3317375,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795748716.753944,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795750231.0440478,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795752321.0287597,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795753829.163171,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795755917.3827581,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795757422.8744757,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795759517.9183784,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795761024.7062926,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795763119.941344,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795764625.1254647,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795766719.1563852,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795768226.1056182,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795770319.1704283,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795771824.6896272,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795773918.874302,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795775425.5190525,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795777519.47671,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795779025.5793142,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795781124.9493458,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795782624.5765376,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795784723.2397258,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795786225.0191514,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795788323.1775181,
+   "done": [
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795789828.828107,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795791917.865226,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795793425.1485202,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795795519.9053235,
+   "done": [
+    "Threads",
+    "YouTube",
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795797029.4685915,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795799117.311618,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795800625.3221807,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795802721.1042151,
+   "done": [
+    "Threads",
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795804232.7988718,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795806317.7727652,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795807823.7269502,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795809925.0447247,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795811427.9274335,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795813516.8678005,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795815023.1762242,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795817125.2674458,
+   "done": [
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795818626.117155,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795820720.100553,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795824318.2282994,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795827917.9963467,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795829422.7198083,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795831525.6273832,
+   "done": [
+    "Instagram"
+   ]
+  },
+  {
+   "ts": 1795836622.7595794,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795838724.9362943,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795842318.3025699,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795849515.9786532,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795851027.9030263,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795853123.5857372,
+   "done": [
+    "Instagram",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795856716.9171133,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795858226.2729988,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795860321.902942,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795861826.30619,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795863919.750876,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795865424.225851,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795867526.4387212,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795869026.0145135,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795871024.772127,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795874719.0028086,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795876228.5240078,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795878317.0456629,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795879829.9462156,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795881918.755975,
+   "done": [
+    "Instagram",
+    "YouTube"
+   ]
+  },
+  {
+   "ts": 1795883425.3759458,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795885517.959956,
+   "done": [
+    "Instagram",
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795887026.6292367,
+   "done": [
+    "Threads"
+   ]
+  },
+  {
+   "ts": 1795889028.3679636,
+   "done": [
+    "Instagram",
+    "Threads",
+    "YouTube"
+   ]
+  }
+ ],
+ "reels": [
+  {
+   "ts": 1795736421.3467453,
+   "done": [
+    "Instagram",
+    "Telegram",
+    "YouTube",
+    "Private"
+   ]
+  },
+  {
+   "ts": 1795822821.1722891,
+   "done": [
+    "Instagram",
+    "Telegram",
+    "Private",
+    "YouTube"
+   ]
+  }
+ ],
+ "followers_prev": {
+  "Telegram": 11,
+  "Instagram": 24,
+  "Facebook": 3,
+  "Threads": 1
+ },
+ "followers": {
+  "Telegram": 11,
+  "Instagram": 28,
+  "Facebook": 3,
+  "Threads": 1
+ },
+ "report_day": "2026-11-27",
+ "alarms": {
+  "fail:Facebook": 1795885228.395297,
+  "fail:Telegram": 1795446527.8054197,
+  "fail:Facebook reel": 1795822821.1722891
+ },
+ "history": {
+  "2026-11-20": {
+   "followers": {
+    "Telegram": 7,
+    "Instagram": 12,
+    "Facebook": 2,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 416,
+    "Facebook": 41,
+    "Threads": 21,
+    "Instagram": 12,
+    "YouTube": 5
+   },
+   "fails": {
+    "Instagram": 7,
+    "Facebook": 4,
+    "Threads": 1,
+    "Telegram": 4
+   }
+  },
+  "2026-11-21": {
+   "followers": {
+    "Telegram": 9,
+    "Instagram": 12,
+    "Facebook": 2,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 48,
+    "Threads": 26,
+    "Facebook": 19,
+    "Instagram": 19,
+    "YouTube": 8
+   },
+   "fails": {
+    "YouTube": 2
+   }
+  },
+  "2026-11-22": {
+   "followers": {
+    "Telegram": 9,
+    "Instagram": 13,
+    "Facebook": 2,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 77,
+    "Facebook": 22,
+    "Instagram": 22,
+    "Threads": 37,
+    "YouTube": 10
+   },
+   "fails": {
+    "Threads weekly": 1,
+    "YouTube weekly": 1,
+    "YouTube": 2
+   }
+  },
+  "2026-11-23": {
+   "followers": {
+    "Telegram": 9,
+    "Instagram": 15,
+    "Facebook": 2,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 424,
+    "Facebook": 26,
+    "Threads": 50,
+    "Instagram": 23,
+    "YouTube": 9
+   },
+   "fails": {
+    "Telegram": 5,
+    "Instagram": 2,
+    "YouTube": 6
+   }
+  },
+  "2026-11-24": {
+   "followers": {
+    "Telegram": 10,
+    "Instagram": 19,
+    "Facebook": 3,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 354,
+    "Facebook": 26,
+    "Threads": 50,
+    "Instagram": 24,
+    "YouTube": 9
+   },
+   "fails": {
+    "Telegram": 2,
+    "YouTube": 6
+   }
+  },
+  "2026-11-25": {
+   "followers": {
+    "Telegram": 11,
+    "Instagram": 21,
+    "Facebook": 3,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 318,
+    "Facebook": 26,
+    "Threads": 50,
+    "Instagram": 23,
+    "YouTube": 9
+   },
+   "fails": {
+    "Instagram": 3,
+    "YouTube": 6
+   }
+  },
+  "2026-11-26": {
+   "followers": {
+    "Telegram": 11,
+    "Instagram": 24,
+    "Facebook": 3,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 205,
+    "Threads": 48,
+    "Facebook": 2,
+    "YouTube": 9,
+    "Instagram": 24
+   },
+   "fails": {
+    "Instagram": 3,
+    "Facebook": 45,
+    "Facebook recap": 2,
+    "YouTube": 6,
+    "Facebook reel": 3
+   }
+  },
+  "2026-11-27": {
+   "followers": {
+    "Telegram": 11,
+    "Instagram": 28,
+    "Facebook": 3,
+    "Threads": 1
+   },
+   "posts": {
+    "Telegram": 225,
+    "Threads": 47,
+    "Instagram": 23,
+    "YouTube": 9
+   },
+   "fails": {
+    "Facebook": 48,
+    "Facebook recap": 2,
+    "Instagram": 4,
+    "Telegram": 2,
+    "YouTube": 6,
+    "Facebook reel": 3,
+    "YouTube reel": 1
+   }
+  }
+ }
+}
